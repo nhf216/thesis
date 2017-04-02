@@ -1,0 +1,55 @@
+2 lives for at least 10000000000 terms.
+3 lives for at least 10000000000 terms.
+4 lives for at least 1000000 terms.
+5 lives for at least 1000000 terms.
+6 lives for at least 1000000 terms.
+7 lives for at least 1000000 terms.
+8 lives for at least 10000000 terms.
+9 lives for at least 10000000 terms.
+10 lives for at least 10000000 terms.
+11 lives for at least 10000000 terms.
+12 lives for at least 10000000 terms.
+13 lives for at least 10000000 terms.
+14 lives for at least 10000000 terms.
+15 lives for at least 10000000 terms.
+16 lives for at least 10000000 terms.
+17 lives for at least 10000000 terms.
+18 lives for at least 10000000 terms.
+19 dies after 9125 terms.
+20 lives for at least 10000000 terms.
+21 lives for at least 10000000 terms.
+22 lives for at least 10000000 terms.
+23 dies after 62 terms.
+24 lives for at least 10000000 terms.
+25 lives for at least 10000000 terms.
+26 dies after 1553 terms.
+27 lives for at least 10000000 terms.
+28 dies after 77 terms.
+29 dies after 353 terms.
+30 dies after 1718 terms.
+31 dies after 152 terms.
+32 dies after 560 terms.
+33 lives for at least 1000000 terms.
+34 dies after 76 terms.
+36 lives for at least 1000000 terms.
+41 dies after 250 terms.
+46 dies after 359 terms.
+51 dies after 280 terms.
+56 dies after 253 terms.
+57 dies after 1001 terms.
+61 dies after 515 terms.
+66 dies after 278 terms.
+67 lives for at least 19047817500 terms.
+71 lives for at least 1000000 terms.
+76 dies after 299 terms.
+81 dies after 308 terms.
+82 dies after 3825463 terms.
+86 dies after 343 terms.
+91 dies after 364 terms.
+96 dies after 382 terms.
+101 dies after 375 terms.
+106 dies after 410 terms.
+107 dies after 4051 terms.
+111 dies after 394 terms.
+116 dies after 401 terms.
+117 dies after 3346939304071 terms.
