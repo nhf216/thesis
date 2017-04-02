@@ -1,0 +1,4354 @@
+##################################################################
+##nicehof.txt: This file is made to accompany Chapter 3          #
+##of Nathan Fox's doctoral thesis                                #
+##                                                               #
+##Save this file as nicehof.txt                                  #
+##To use it, stay in the                                         #
+##same directory, start Maple (by typing: maple <Enter> )        #
+##and then type:  read nicehof.txt <Enter>                       #
+##Then follow the instructions given there                       #
+##                                                               #
+##This file depends on mapledoc.txt, which can be found in the   #
+##same online directory as this file                             #
+##                                                               #
+##Written by Nathan Fox, Rutgers University,                     #
+##fox at math dot rutgers dot edu                                #
+##Version 1.0.1                                                  #
+##################################################################
+
+with(`combinat`):
+with(`ListTools`):
+with(`Optimization`):
+with(`GraphTheory`):
+
+read(`mapledoc.txt`):
+
+printf("%s\n\n%s\n\n%s@math.rutgers.edu\n\n%s\n%s\n\n%s\n%s\n%s\n%s\n",
+    "This is nicehof.txt",
+    "It accompanies Chapter 3 of \"An Exploration of Nested Recurrences Using Experimental Mathematics\" by Nathan Fox",
+    "Please report bugs to fox",
+    "The most current version of this package is available from",
+    #"http://www.math.rutgers.edu/~nhf12/research/nicehof.txt",
+    #"http://github.com/nhf216/nestedrecurrences/nicehof.txt",
+    "http://github.com/nhf216/thesis/nicehof.txt",
+    "To load the package, after reading the file, import the package NiceHof",
+    "For a list of the procedures in this package, along with their usage, type Help();.",
+    "For help with a specific procedure, type Help(procedure_name);.",
+    "For a brief description of a specific procedure, type Describe(procedure_name);.",
+    "For a list of important constants, type Help(constants);."):
+
+NiceHof:=module()
+description "This package contains procedures for working with nested recurrences.\nMost of the procedures are involved with finding solutions consisting of interleaved sequences of a nice form (e.g. constant or linear).":
+option package:
+##Public stuff
+export
+#Structure constants
+DEGREE, CONSTANT, LINEAR, QUADRATIC, CUBIC, QUARTIC, QUINTIC,
+EXPONENTIAL, POLYNOMIAL, STEEP_POLYNOMIAL, SLOPE,
+STANDARD_LINEAR, STEEP_LINEAR, SUPERLINEAR, STEEP, ANY,
+STANDARD, QUASILINEAR,
+#Default value contstants
+DEF_S, DEF_C, DEF_O, DEF_NC, DEF_QC, DEF_K, DEF_LEVEL,
+MAX_LEVEL, DEF_MINDEX, DEF_DEFVALUE, DEF_DEFVAR, IC_DEFAULT,
+IC_NONE, IC_LAZY, IC_FULL,
+#Constant recurrences
+HOF, TRI_HOF, QUAD_HOF, CONWAY,
+#Procedures
+CompileRec, GetRec, Qg, SeqQg, GetQGuessExpr,
+GetRecurrenceSystem, GetDescrs, GetGrowthRates,
+SetRecBracket, SetBracket, FindQgSolutions, FindIC, FindLazyIC,
+FindMetaFibRep, NiceDisplay, FindPolynomial, AnalyzeQg, Help,
+CountTotal,
+#Table fields
+t_Q, t_m, t_a, t_b, t_n, t_rec, t_bracket, t_defvar, t_defvalue,
+t_ineqs, t_mindex, t_bmods, t_sample, t_forms,
+t_descr, t_ic, t_avals, t_icconstr, t_largesymbols,
+t_sampicconstr, t_symbolics, t_eqc, t_qrefs,
+#Other (just to protect these)
+constants, Q, a, b, n:
+##Private stuff
+local
+#Type constants
+expr_type,
+#Debug constants
+REPORT_STAGGERING_FAILURES,
+#Stuff for MapleDoc
+Input, Output, Note, __doc,
+#Auxiliary procedures
+GetSCO, failsubs, ProcessQg, evalb2asm, PlugInQMod,
+simplesolve, semisolve, cleanup,
+mydenom, neg, evalb2, loosen, consterm,
+indset, deepsubs, MyILPSolve, PSolve, NegIneq, ReduceIneqs,
+GetSubs, FilterConstraints, OnlyVars, FinalizeSolution,
+BuildAB, AdaptiveBShrinking, VeryFinalizeSolution,
+CheckFeasibility, StructureSatisfied,
+StructureSatisfiable, ExtractStructure,
+InstillProperBrackets, InstillProperBracketsTable, QgSearchAB,
+QgSearchA, QgSearch, NormalizeRecurrenceSystem, GetPeriod,
+AStructureConvert,
+#Documentation strings
+A_input, Q_input, b_input, n_input, rec_input, mods_input,
+mindex_input, defvalue_input, defvar_input, n_qg_input, ic_qg_input, failure_input, largesymbols_qg_input, varsub_input, includeassumptions_input, assumptions_input, consistencycheck_input, reduce_input, largestnumber_input, bigsymbols_input, failurethreshold_input, N_qg_input, B_input, nodeath_input, a_input, timeout_input, miniclength_input, optlengthic_input, largesymbols_input, sol_input:
+
+##########################################################
+##CONSTANTS
+
+#mapledoc
+Input:=':-Input':
+Output:=':-Output':
+Note:=':-Note':
+__doc:=DocManager():
+
+#Expression Type
+expr_type:=Or(function, indexed):
+
+#Structure constants
+DEGREE:=(n1, n2)->DEGR[n1, n2]: #Range of degrees (inclusive)
+CONSTANT:=DEGREE(0, 0):
+LINEAR:=DEGREE(1, 1):
+QUADRATIC:=DEGREE(2, 2):
+CUBIC:=DEGREE(3, 3):
+QUARTIC:=DEGREE(4, 4):
+QUINTIC:=DEGREE(5, 5):
+EXPONENTIAL:=DEGREE(infinity, infinity):
+POLYNOMIAL:=not EXPONENTIAL:
+STEEP_POLYNOMIAL:=POLYNOMIAL and not CONSTANT and not LINEAR:
+SLOPE:=(m1, m2)->(LINEAR and SLP[m1, m2]):
+STANDARD_LINEAR:=SLOPE(1, 1):
+STEEP_LINEAR:=LINEAR and not STANDARD_LINEAR:
+SUPERLINEAR:=STEEP_POLYNOMIAL or EXPONENTIAL:
+STEEP:=STEEP_LINEAR or SUPERLINEAR:
+ANY:=DEGREE(0, infinity):
+STANDARD:=CONSTANT or STANDARD_LINEAR:
+QUASILINEAR:=DEGREE(0, 1):
+
+#Default values for things
+DEF_S:=[1,2]:
+DEF_C:=[1,1]:
+DEF_O:=[0,0]:
+DEF_NC:=[1,1]:
+DEF_QC:=[1,1]:
+DEF_K:=0:
+DEF_LEVEL:=6:
+MAX_LEVEL:=6:
+DEF_MINDEX:=1:
+DEF_DEFVALUE:=0:
+DEF_DEFVAR:=n:
+
+IC_DEFAULT:=-1:
+IC_NONE:=0:
+IC_LAZY:=1:
+IC_FULL:=2:
+
+#Debug variables
+REPORT_STAGGERING_FAILURES:=false:
+
+#Documentation strings
+A_input:=(Input::"A: a list of length m such that Q(m*n+i)=",
+"A[i-1]*n+b[i] for some b[i], or A[i-1]=infinity if Q(m*n+i) ",
+"grows faster than m*n. (If Q(m*n+i) is steep linear, A[i-1] ",
+"can be a constant or infinity.)"):
+Q_input:=(Input::"Q (optional): the symbol used to denote the ",
+"recursive function (default is the global symbol Q)"):
+a_input:=(Input::"a (optional): the symbol used to denote the ",
+"coefficients on n in Q(m*n+i) (default is the global symbol a)"):
+b_input:=(Input::"b (optional): the symbol used to denote the ",
+"constant parts of Q(m*n+i) (default is the global symbol b)"):
+n_input:=(Input::"n (optional): the symbol used to denote the ",
+"n in Q(m*n+i) (default is the global symbol n)"):
+rec_input:=(Input::"rec (optional): the recurrence to consider, ",
+"either in the form of an input to CompileRec or as an output ",
+"from CompileRec or GetRec (default is Hofstadter's Q-recurrence)"):
+mods_input:=(Input::"mods (optional): a list or set of expressions of ",
+"the form b[i] = h[i] where each h[i] is an integer from 0 to m ",
+"and i ranges over a subset of {0, 1,..., m-1} (default is {})"):
+mindex_input:=(Input::"mindex (optional): the smallest input for Q we ",
+"consider (default is 1)"):
+defvalue_input:=(Input::"defvalue (optional): an expression for Q(n) ",
+"when n < mindex (may contain a variable) (default is 0)"):
+defvar_input:=(Input::"defvar (optional): the variable appearing in ",
+"defvalue (default is the global symbol n)"):
+n_qg_input:=(Input::"n: the index at which to evaluate the recurrence"):
+ic_qg_input:=(Input::"ic (optional): the initial condition, as a list (default is [1,1])"):
+failure_input:=(Input::"failure (optional): if true, Q(n) returns FAIL if n < mindex (default is false)"):
+largesymbols_qg_input:=(Input::"largesymbols (optional): If true, Q(symbolic expression) ",
+"is evaluated as if the symbolic expression is less than mindex. ",
+"If false, Q(symbolic expression) returns FAIL. (Default is true)"):
+varsub_input:=(Input::"varsub (optional): a set of substitutions ",
+"for variables other than Q and n appearing in rec (default is {})"):
+includeassumptions_input:=(Input::"includeassumptions (optional): ",
+"if true, a set of assumptions that were made about symbols ",
+"is also returned (default is false)"):
+assumptions_input:=(Input::"assumptions (optional): a set of ",
+"assumptions to be enforced about symbols (default is {})"):
+consistencycheck_input:=(Input::"consistencycheck (optional): if true, the procedure makes sure all assumptions it makes are ",
+"consistent. If false, the procedure may run noticably faster. ",
+"(Default is true)"):
+reduce_input:=(Input::"reduce (optional): if true, the set of ",
+"assumptions made about symbols is simplified (default is true)"):
+largestnumber_input:=(Input::"largestnumber (optional): if Q(n) > largestnumber, then infinity is returned (default is infinity)"):
+bigsymbols_input:=(Input::"bigsymbols (optional): a set of symbols ",
+"where we might evaluate Q that are treated as larger than any ",
+"integer (default is {})"):
+failurethreshold_input:=(Input::"failurethreshold (optional): Either ",
+"false or an intger. If failure is false, this argument does ",
+"nothing. If failure is true and this is an integer, then ",
+"Q(n) is FAIL if n <= failurethreshold. (Default is false)"):
+N_qg_input:=(Input::"N: the number of terms of the sequence to generate, starting from mindex"):
+B_input:=(Input::"B: a list of length m such that Q(m*n+i)=",
+"A[i-1]*n+B[i-1]. If Q(m*n+i) is steep, B[i-1] can be arbitrary, though it is typically the symbol b[i]."):
+nodeath_input:=(Input::"nodeath: A boolean. If true, then Q(n) ",
+"is undefined if n < mindex. (default is false)"):
+timeout_input:=(Input::"timeout (optional): If the initial condition search ",
+"takes more than timeout steps, it returns an error (default is infinity)"):
+miniclength_input:=(Input::"miniclength (optional): An integer specifying a ",
+"minimum length that any initial condition should have (default is 0)"):
+optlengthic_input:=(Input::"optlengthic (optional): If false, any initial condition ",
+"will end at an index congruent to -1 mod m, though the initial ",
+"condition search should take 1/m the time (default is true)."):
+largesymbols_input:=(Input::"largesymbols (optional): If true, symbols in initial conditions ",
+"are treated as sufficiently large/small that referencing them "):
+sol_input:=(Input::"sol: A solution table, as returned by FindQgSolutions"):
+
+##########################################################
+##AUXILIARY PROCEDURES
+
+#Procedure for handling defaults for various arguments
+GetSCO:=proc(S, C, O)
+    if nops(S) = nops(C) and nops(C) = nops(O) then
+        return S, C, O:
+    elif nops(S) = nops(C) and O = DEF_O then
+        return S, C, [0$nops(S)]:
+    elif C = DEF_C and nops(S) = nops(O) then
+        return S, [1$nops(S)], O:
+    elif C = DEF_C and O = DEF_O then
+        return S, [1$nops(S)], [0$nops(S)]:
+    else
+        error "S, C, and O are inconsistent":
+    fi:
+end:
+
+#Subs, but any appearance of fail just makes the whole thing fail
+failsubs:=proc(sub, expr) local s, inds:
+    inds:=indets(expr):
+    for s in sub do
+        if op(2, s) = FAIL and op(1, s) in inds then
+            return FAIL:
+        fi:
+    od:
+    return subs(sub, expr):
+end:
+
+#Helper structural procedure
+ProcessQg:=proc(expr, Q, whatToDo, {depth:=0})
+local inds, ind, evl, L, i:
+    #Get the indeterminates
+    inds:=indets(expr):
+    #Table of evaluations
+    evl:=table():
+    #Go through the indeterminates
+    for ind in inds do
+        #Is it a Q thing?
+        if (type(Q, symbol) and op(0, ind) = Q) or (Q = false and type(ind, expr_type)) then
+            #Evaluate the argument
+            evl[ind]:=ProcessQg(op(ind), Q, whatToDo, ':-depth'=depth+1):
+            #Do the extra stuff
+            evl[ind]:=whatToDo(evl[ind], ':-depth'=depth, ':-Qsm'=op(0, ind), ':-thetype'=whattype(ind)):
+        fi:
+    od:
+    #Put it all together
+    return failsubs(op(op(evl)), expr):
+end:
+
+#Evaluate boolean expression with assumptions
+evalb2asm:=proc(expr, asm) local e1, e2:
+    try:
+        e1:=is(expr) assuming op(asm):
+        e2:=is(not(expr)) assuming op(asm):
+        if e1 then
+            return 1:
+        elif e2 then
+            return -1:
+        elif not(e1) and not(e2) then
+            return 0:
+        else
+            return FAIL:
+        fi:
+    catch:
+        return false:
+    end try:
+end:
+
+#Auxiliary procedure for evaluating Q mod things
+PlugInQMod:=proc(m::integer, Q::symbol, A::list, B::list, n::symbol, expr::algebraic, mods:={}, {E:=NULL, c1:=NULL, c0:=NULL, inequalities:=false, icconstraints:=false, implicit:=false, nodeath:=false, idx:=0, mindex::integer:=DEF_MINDEX, shallow::boolean:=false})
+local EE, c1v, c0v, i, ExprMod, c0m, ret, ineqs, icconstr:
+    #What is the given expression mod m?
+    #If indeterminate, return FAIL
+    ExprMod:=proc(expr)
+    local expr2:
+        #Put in the modularity stuff
+        expr2:=subs(mods, expr):
+        #Can the modularity be deduced?
+        if type(expr2, integer) then
+            #Yes
+            return expr2 mod m:
+        else
+            #No
+            return FAIL:
+        fi:
+    end:
+    
+    if inequalities then
+        ineqs:={}:
+    else
+        ineqs:=NULL:
+    fi:
+    
+    if icconstraints then
+        icconstr:={}:
+    else
+        icconstr:=NULL:
+    fi:
+    
+    if E = NULL then
+        EE:=Q:
+    else
+        EE:=E:
+    fi:
+    #Coefficient on n
+    c1v:=c1:
+    if c1v = NULL then
+        c1v:=coeff(expr, n, 1):
+    fi:
+    #Constant term
+    c0v:=c0:
+    if c0v = NULL then
+        c0v:=coeff(expr, n, 0):
+    fi:
+    #Constant term mod m
+    c0m:=ExprMod(c0v):
+    #Is it linear with the right slope?
+    if expr = c1v*n+c0v and type(c1v, integer) and c1v mod m = 0 then
+        #Yes, so replace with linear thing, if possible
+        if c1v > 0 and c0m <> FAIL then
+            i:=c0m:
+            if (not(shallow) and A[i+1] < infinity) or (shallow and A[i+1] <= m) then
+                #Actually linear
+                ret:=simplify(A[i+1]*(expr-i)/m + B[i+1]):
+                if icconstraints then
+                    #Add a constraint
+                    icconstr:=icconstr union {Q[expr] = ret}:
+                fi:
+            else
+                #Superlinear
+                if nodeath then
+                    return FAIL, ineqs, icconstr:
+                else
+                    ret:=EE[expr]:
+                fi:
+            fi:
+        else
+            ret:=Q[expr]:
+        fi:
+        if inequalities then
+            #Get inequalities
+            if c1v > 0 and not(implicit) then
+                #No future
+                ineqs:=ineqs union {c0v < idx}:
+            fi:
+            if c1v = 0 and nodeath then
+                #No nonpositives
+                ineqs:=ineqs union {c0v >= mindex}:
+            fi:
+        fi:
+        return ret, ineqs, icconstr:
+    else
+        #No, so don't change anything
+        return Q[expr], ineqs, icconstr:
+    fi:
+end:
+
+#Solve a single equation/inequality
+simplesolve:=proc(eqn, ind) local expr, c1, c0, opr:
+    #Solve the inequality manually
+    #Trust me.  It's faster.
+    expr:=op(1, eqn)-op(2, eqn):
+    c1:=coeff(expr, ind, 1):
+    c0:=coeff(expr, ind, 0):
+    if type(eqn, `<=`) then
+        if c1 < 0 then
+            opr:=`>=`:
+        else
+            opr:=`<=`:
+        fi:
+    elif type(eqn, `<`) then
+        if c1 < 0 then
+            opr:=`>`:
+        else
+            opr:=`<`:
+        fi:
+    elif type(eqn, `=`) then
+        opr:=`=`:
+    fi:
+    if c1 <> 0 then
+        return opr(ind, -c0/c1):
+    else
+        return NULL:
+    fi:
+end:
+
+#Isolate single-variable inequalities
+semisolve:=proc(ineqs)
+local ret, i, ind, expr, c1, c0, opr, inset:
+    #Can pass either a set or a single inequality
+    if type(ineqs, set) then
+        inset:=ineqs:
+    else
+        inset:={ineqs}:
+    fi:
+    #Return this
+    ret:={}:
+    #Iterate through the inequalities
+    for i in inset do
+        ind:=indets(i):
+        if nops(ind) = 1 then
+            ret:=ret union {simplesolve(i, ind[1])}:
+        elif nops(ind) = 0 then
+            expr:=evalb(i):
+            if not(expr) then
+                #No solution
+                return NULL:
+            fi:
+        else
+            ret:=ret union {i}:
+        fi:
+    od:
+    #Return type should match input type
+    if type(ineqs, set) then
+        return ret:
+    else
+        return ret[1]:
+    fi:
+end:
+
+#Auxiliary procedure to clean up solution sets (removing
+#solution elements of the form a=a)
+#If sym is passed, only clean up things that are indexed by sym
+cleanup:=proc(solset::set, sym:=false) local sret, s, hassym:
+    hassym:=proc(expr) local i:
+        if type(expr, numeric) then
+            return evalb(sym = true):
+        elif type(expr, expr_type) then
+            return op(0, expr) = sym:
+        elif type(expr, atomic) then
+            return false:
+        else
+            for i from 1 to nops(expr) do
+                if hassym(op(i, expr)) then
+                    return true:
+                fi:
+            od:
+            return false:
+        fi:
+    end:
+    sret:={}:
+    for s in solset do
+        if op(1, s) <> op(2, s) then
+            sret:=sret union {s}:
+        elif sym <> false and not(hassym(op(1, s))) then
+            sret:=sret union {s}:
+        fi:
+    od:
+    return sret:
+end:
+
+#Auxiliary denominator thingy
+mydenom:=proc(expr) local i, ret:
+    if type(expr, fraction) then
+        return denom(expr):
+    elif type(expr, atomic) then
+        return 1:
+    elif type(expr, algebraic) then
+        ret:=1:
+        for i from 1 to nops(expr) do
+            ret:=ilcm(ret, mydenom(op(i, expr))):
+        od:
+        return ret:
+    else
+        return 1:
+    fi:
+end:
+
+#Negate a relation
+neg:=proc(expr)
+    if type(expr, `=`) then
+        return op(1, expr) <> op(2, expr):
+    elif type(expr, `<>`) then
+        return op(1, expr) = op(2, expr):
+    elif type(expr, `<`) then
+        return op(1, expr) >= op(2, expr):
+    elif type(expr, `<=`) then
+        return op(1, expr) > op(2, expr):
+    else
+        return not(expr):
+    fi:
+end:
+
+#Returns 1 if always true, 0 if maybe true, -1 if never true
+evalb2:=proc(expr) local expr2:
+    if type(expr, relation) then
+        expr2:=whattype(expr)(op(1, expr)-op(2, expr), 0):
+        if type(op(1, expr2), integer) then
+            if expr2 then
+                return 1:
+            else
+                return -1:
+            fi:
+        else
+            return 0:
+        fi:
+    elif op(0, expr) = Logic[`&or`] or type(expr, `or`) then
+        return max(evalb2(op(1, expr), op(2, expr))):
+    elif op(0, expr) = Logic[`&and`] or type(expr, `and`) then
+        return min(evalb2(op(1, expr), op(2, expr))):
+    elif op(0, expr) = Logic[`&not`] or type(expr, `not`) then
+        return -evalb2(op(1, expr)):
+    else
+        if expr then
+            return 1:
+        else
+            return -1:
+        fi:
+    fi:
+end:
+
+#Convert strict inequality to loose inequality
+loosen:=proc(expr)
+    if type(expr, `<`) then
+        return op(1, expr) <= op(2, expr)-1:
+    else
+        return expr:
+    fi:
+end:
+
+#Constant term
+consterm:=proc(expr) local i:
+    if type(expr, `+`) then
+        for i in expr do
+            if type(i, numeric) then
+                return i:
+            fi:
+        od:
+        return 0:
+    elif type(expr, numeric) then
+        return expr:
+    else
+        return 0:
+    fi:
+end:
+
+#Set of indices in a table
+indset:=proc(t)
+    return {indices(t, nolist)}:
+end:
+
+#Repeatedly substitute
+deepsubs:=proc(sub, expr) local tem, ret:
+    ret:=expr:
+    while true do
+        tem:=subs(sub, ret):
+        if tem = ret then
+            #We're done
+            return ret:
+        fi:
+        ret:=tem:
+    od:
+end:
+
+#Solve an integer linear program, MY WAY
+#Probably not actually guaranteed to terminate, but should
+#heuristically work for these applications
+MyILPSolve:=proc(constraints::set, {symbolic::boolean:=false, depthlimit:=-1})
+local eq, ineq, freevars, z, i, v, lps, veryfreevars, fsub, varsub, sub, opts, eq2:
+    #Separate out the equalities/inequalities
+    eq:={}:
+    ineq:={}:
+    for i in constraints do
+        if type(i, `=`) then
+            eq:=eq union {i}:
+        elif type(i, `<=`) then
+            ineq:=ineq union {i}:
+        elif type(i, `<`) then
+            ineq:=ineq union {loosen(i)}:
+        else
+            error(sprintf("Illegal contstraint: %a", i)):
+        fi:
+    od:
+    #Integer solve the equalities
+    freevars:={seq(z[i], i=1..nops(indets(eq)))}:
+    eq2:=isolve(eq, freevars):
+    if eq2 = NULL then
+        #No solutions
+        return NULL:
+    fi:
+    eq:=eq2:
+    #Rewrite inequalities in terms of the free variables
+    ineq:=ReduceIneqs(subs(eq, ineq)):
+    #Find the free variables not in inequalities
+    veryfreevars:=(freevars minus indets(ineq)) intersect indets(eq):
+    #Solve the new inequalities
+    if nops(ineq) > 0 then
+        try:
+            #TODO write my own thing here
+            #For now, just use LPSolve
+            if depthlimit >= 0 then
+                opts:=':-depthlimit'=depthlimit:
+            else
+                opts:=NULL:
+            fi:
+            lps:=LPSolve(0, ineq, assume=integer, opts):
+        catch:
+            #It didn't work
+            return NULL:
+        end try:
+    else
+        lps:=[0, []]:
+    fi:
+    #Plug back in
+    if symbolic then
+        #Look for equations with a free variable in them
+        fsub:={}:
+        while nops(veryfreevars) > 0 do
+            for i in eq do
+                v:=indets(i) intersect veryfreevars:
+                if v <> {} then
+                    #Found one!
+                    v:=v[1]:
+                    fsub:=fsub union {simplesolve(i, v)}:
+                    veryfreevars:=veryfreevars minus {v}:
+                fi:
+            od:
+            eq:=subs(fsub, eq):
+        od:
+        ##Solve for the free variables
+    else
+        #Make free variable zero
+        fsub:={seq(i = 0, i in veryfreevars)}:
+    fi:
+    sub:={}:
+    varsub:={}:
+    for i from 1 to nops(lps[2]) do
+        v:=lps[2][i]:
+        sub:=sub union {v}:
+        if not(op(1, v) in freevars) then
+            varsub:=varsub union {v}:
+        fi:
+    od:
+    fsub:=subs(sub, fsub):
+    sub:=sub union fsub:
+    return subs(sub, eq) union varsub:
+end:
+
+#Solve procedure
+PSolve:=proc(constraints, {depthlimit::integer:=-1, symbolic::boolean:=false})
+local constr, sol, iconstr, ficonstr, one, sub, ret, s, freevars, nlconstr, snlconstr, nc:
+option remember:
+    #Remove trivial constraints
+    constr:=cleanup(constraints):
+    #Find free variables
+    freevars:=indets(constraints) minus indets(constr):
+    #Get the substitutions to make things better
+    sub:=GetSubs(constr):
+    #Look for fractions in the substitution
+    for s in sub do
+        if type(op(2, s), numeric) and not(type(op(2, s), integer)) then
+            #FRACTION ALERT!
+            return false:
+        fi:
+    od:
+    #Do the substitutions and remove resulting trivialities
+    constr:=cleanup(subs(sub, constr)):
+    #Get the inequality constraints (formerly with only one variable)
+    iconstr:=FilterConstraints(constr, types={`<=`}, linear=false):
+    #Only keep around inequalities that aren't dwarfed
+    #by other inequalities
+    ficonstr:=ReduceIneqs(iconstr):
+    #Get nonlinear constraints
+    nlconstr:=FilterConstraints(ficonstr, types={`<=`}, linear=false, onlynl=true):
+    #Try to linearize
+    snlconstr:=[solve(nlconstr)]:
+    #Iterate through the possibilities
+    for nc in snlconstr do
+        #Replace the constraint system with the modified one
+        constr:=(constr minus iconstr) union (ficonstr minus nlconstr) union nc:
+        if nops(constr) > 0 then
+            #There is at least one constraint remaining
+            sol:=MyILPSolve(constr, ':-depthlimit'=depthlimit, ':-symbolic'=symbolic):
+            if sol = NULL then
+                #Boo, it didn't work
+                #return false:
+                next:
+            fi:
+            ##Extract the solution
+            #Include the substitutions
+            sol:=sol union sub:
+        else
+            #No constraints remained to be optimized
+            #So, just use the substitutions
+            sol:=sub:
+        fi:
+        #Employ programmed values throughout
+        sol:=solve(sol):
+        #Set values for free variables
+        ret:={}:
+        for s in sol do
+            if op(1, s) = op(2, s) then
+                #Free variable
+                #Make it 0
+                #(Are fractions possible?)
+                if symbolic then
+                    ret:=ret union {op(1, s) = op(1, s)}:
+                else
+                    ret:=ret union {op(1, s) = 0}:
+                fi:
+            else
+                #Non-free variable
+                ret:=ret union {s}:
+            fi:
+        od:
+        #Employ free variable values throughout
+        ret:=solve(ret):
+        if symbolic then
+            ret:=ret union {seq(s=s, s in freevars)}:
+        else
+            ret:=ret union {seq(s=0, s in freevars)}:
+        fi:
+        return ret:
+    od:
+    #It didn't work
+    return false:
+end:
+
+#Negate integer inequality
+NegIneq:=proc(ineq) local lhs:
+    lhs:=op(1, ineq) - op(2, ineq):
+    return lhs >= 1:
+end:
+
+#Eliminate inequalities that are implied by other ones
+#Also, throw out true statements
+ReduceIneqs:=proc(ineqs)
+local ret, i, news, noc, fn, owl, rewarn:
+    rewarn:=proc()
+        if fn = NLPSolve then
+            #Re-enable warnings
+            interface(warnlevel=owl):
+        fi:
+    end:
+    #Return set
+    #Throw out constant inequalities
+    noc:={}:
+    fn:=LPSolve:
+    for i in ineqs do
+        if nops(indets(i)) > 0 then
+            noc:=noc union {i}:
+            #Check if it's nonlinear
+            if degree(op(1, i) - op(2, i)) > 1 then
+                fn:=NLPSolve:
+            fi:
+        elif evalb(i) = false then
+            #Contradiction
+            return {1<=0}:
+        fi:
+    od:
+    if noc = {} then
+        #No inequalities left
+        return {}:
+    fi:
+    if fn = NLPSolve then
+        #Disable warnings
+        owl:=interface(warnlevel=0):
+    fi:
+    #Check for overall contradiction
+    try:
+        fn(0, ineqs):
+    catch:
+        #Contradiction 
+        rewarn():
+        return {1<=0}:
+    end try:
+    #See which others can be thrown out
+    ret:=noc:
+    for i in noc do
+        try:
+            fn(0, (ret minus {i}) union {NegIneq(i)}):
+        catch:
+            #i can be thrown out
+            ret:=ret minus {i}:
+        end try:
+    od:
+    rewarn():
+    return ret:
+end:
+
+#Get substitutables out of a constraint system
+#These are constraints of the form variable = something
+GetSubs:=proc(constraints) local c, ret, expr, ind, c1, c0:
+    ret:={}:
+    for c in constraints do
+        if type(c, `=`) then
+            ind:=indets(c):
+            if nops(ind) = 1 then
+                ret:=ret union {simplesolve(c, ind[1])}:
+            fi:
+        fi:
+    od:
+    return ret:
+end:
+
+#Filter constraints
+FilterConstraints:=proc(constraints, {yes:={}, no:={}, types:={`=`}, linear:=true, onlynl:=false, one:=false}) local ret, c, inds, i, dgr:
+option remember:
+    ret:={}:
+    for c in constraints do
+        inds:=indets(c):
+        if one and nops(inds) > 1 then
+            next:
+        fi:
+        inds:={seq(op(0, i), i in inds)}:
+        if type(op(1, c)-op(2, c), polynom) then
+            dgr:=degree(op(1, c)-op(2, c)):
+        else
+            dgr:=FAIL:
+        fi:
+        #print(c, dgr):
+        if (true in {seq(evalb(type(c, i)), i in types)}) and
+                (yes subset inds) and
+                (inds intersect no = {}) and
+                (linear implies (dgr <> FAIL and dgr <= 1)) and
+                (onlynl implies (dgr = FAIL or dgr > 1)) then
+            ret:=ret union {c}:
+        fi:
+    od:
+    return ret:
+end:
+
+#The given expression has only given variable names
+#in its indeterminates
+OnlyVars:=proc(expr, var) local ind:
+    for ind in indets(expr) do
+        if op(0, ind) <> var then
+            return false:
+        fi:
+    od:
+    return true:
+end:
+
+#Finalize a solution
+FinalizeSolution:=proc(m::integer, sol, Q::symbol, b::symbol, k::symbol) local ret, i, s, s1:
+    ret:=table():
+    ret[b]:=subs(sol, [seq(b[i], i=0..m-1)]):
+    ret[Q]:={}:
+    for s in sol do
+        s1:=op(1, s):
+        if not(type(s1, expr_type)) or not(op(0, s1) in {b, k}) then
+            ret[Q]:=ret[Q] union {s}:
+        fi:
+    od:
+    return op(ret):
+end:
+
+#Check the feasibility of an output from QgSearchAB
+#Returns a A value and a B value if it finds one
+#If it gives up (due to level being lower than 5), returns true
+#If it fails, returns false
+#This is now an auxiliary procedure, so we can do more stuff
+#with option remember efficiently
+#
+#Note: there are cases where a values may have various modularity
+#requirements dependent on modularity requirements of b values
+#In these cases, the strictest possible requirements are put on
+#the a values
+BuildAB:=proc(m::integer, vsol::table, Q::symbol, b::symbol, n::symbol, h::symbol, k::symbol, {level::integer:=DEF_LEVEL, verbose::boolean:=false, depthlimit::integer:=-1, ineqs::set:={}})
+local s, v, w, condConstraints, moreConstraints, Qlist, t, val, strw, i, j, satisfyConstraints, clist, soleq, cc, nc, eb, eb2, meq, sol, msub, ci, ExtractQs, condeqConstraints, condineqConstraints, staggeringConstraints, staggering, stagchoices, staggerers, maxQ, lastb, extraConstraints, aConstraints, avar, bvar, kvar, asub, absConstraints, yes, no, linear, onlynl, one, lvar, GetAModularityConstraints, kind, RegisterQ, hvar, hind, subh, unsubh, plainQlist, mindex, defvalue, defvar:
+option remember:
+    
+    if level = 0 then
+        #At this level, we don't worry if things are feasible
+        return true:
+    fi:
+    
+    #Register a single Q value
+    RegisterQ:=proc(i) local j:
+        #Check if it's already registered
+        for j in subh do
+            if op(1, j) = i then
+                #It's already registered
+                return:
+            fi:
+        od:
+        #It's not already registered
+        hvar:=hvar union {h[hind]}:
+        subh:=subh union {i = h[hind]}:
+        unsubh:=unsubh union {h[hind] = i}:
+        hind:=hind+1:
+        #add to plain Q list
+        plainQlist:=[op(plainQlist), i]:
+        condConstraints:=condConstraints union {[op(1, i) <= mindex-1, i = subs(defvar=op(1, i), defvalue)]}:
+    end:
+    
+    #Extract Q terms from constraint s
+    ExtractQs:=proc(s, equality:=true) local i, sl, o1i:
+        for i in indets(s) do
+            if type(i, expr_type) and op(0, i) = Q then
+                RegisterQ(i):
+                o1i:=op(1, i):
+                if equality and type(s, `=`) then
+                    sl:=solve(s, i):
+                    #Add to Q list
+                    Qlist:=[op(Qlist), [o1i, sl]]:
+                fi:
+                #Get more Q's if necessary
+                ExtractQs(o1i, false):
+                #maxQ it
+                maxQ:=max(maxQ, consterm(o1i)):
+                #add to staggerers
+                staggerers:=staggerers union {consterm(o1i) - o1i}:
+            fi:
+        od:
+    end:
+    
+    satisfyConstraints:=proc(constraints, extras:={}, conds:=[])
+    local eq, c, xeq, sol, i, j, validateSol, ok, rst, xtras:
+        validateSol:=proc(soln, stt, condz, checkneq:=true, adapt:=true)
+        local cond, ok, vs, solveHelper, cutoff, stret:
+            #It's never good to copy/paste code...
+            solveHelper:=proc(condd, opt) local st2, sol2:
+                if opt = `=` then
+                    st2:=stt union {condd[1], condd[2]}:
+                elif opt = `<` then
+                    st2:=stt union {loosen(op(1, cond[1]) < op(2, cond[1]))}:
+                elif opt = `>` then
+                    st2:=stt union {loosen(op(1, cond[1]) > op(2, cond[1]))}:
+                fi:
+                sol2:=PSolve(st2 union xtras, ':-depthlimit'=depthlimit):
+                if sol2 <> false then
+                    return validateSol(sol2, st2, condz minus {cond}):
+                else
+                    return false, [], {}:
+                fi:
+            end:
+            ok:=true:
+            stret:=stt:
+            for cond in condz do
+                if not(adapt) or (evalb(subs(soln, cond[1])) and not(evalb(subs(soln, cond[2])))) then
+                    #There was a violation
+                    ok:=false:
+                    #Force conclusion
+                    vs:=solveHelper(cond, `=`):
+                    if vs[1] then
+                        return vs:
+                    fi:
+                    if checkneq then
+                        #Force a<b
+                        vs:=solveHelper(cond, `<`):
+                        if vs[1] then
+                            return vs:
+                        fi:
+                        
+                        #Force b<a
+                        vs:=solveHelper(cond, `>`):
+                        if vs[1] then
+                            return vs:
+                        fi:
+                    fi:
+                #If it works, still need to record the constraints
+                elif evalb(subs(soln, cond[1])) then
+                    stret:=stret union {cond[1], cond[2]}:
+                elif evalb(subs(soln, op(1, cond[1]) < op(2, cond[1]))) then
+                    stret:=stret union {loosen(op(1, cond[1]) < op(2, cond[1]))}:
+                elif evalb(subs(soln, op(1, cond[1]) > op(2, cond[1]))) then
+                    stret:=stret union {loosen(op(1, cond[1]) > op(2, cond[1]))}:
+                else
+                    print("This is bad"):
+                fi:
+            od:
+            if ok then
+                #Found a solution!
+                return ok, soln, stret:
+            else
+                #Failed to find a solution
+                return false, [], {}:
+            fi:
+        end:
+        eq:={}:
+        for c in constraints do
+            eq:=eq union {loosen(c)}:
+        od:
+        xtras:={}:
+        for c in extras do
+            xtras:=xtras union {loosen(c)}:
+        od:
+        #For now, don't worry about the non-equalities
+        #Just test the equalities/inequalities
+        sol:=PSolve(eq union xtras, ':-depthlimit'=depthlimit):
+        if sol = false then
+            return false:
+        fi:
+        
+        if level = 2 then
+            #Forever, don't worry about the non-equalities
+            return true:
+        fi:
+        
+        #Backtrack through the non-equality constraints
+        ok, sol, rst:=validateSol(sol, eq, convert(conds, set), evalb(level >= 4)):
+        if not(ok) and level >= 5 then
+            #Adaptive search didn't work
+            #Try a non-adaptive search
+            ok, sol, rst:=validateSol(sol, eq, convert(conds, set), evalb(level >= 6), false):
+        fi:
+        rst:=cleanup(rst):
+        if ok then
+            return [FinalizeSolution(m, sol, Q, b, k), rst]:
+        else
+            #Did not find a solution
+            return false:
+        fi:
+    end:
+    #Absolute constraints
+    absConstraints:=ineqs:
+    #Conditional constraints
+    condConstraints:={}:
+    #Modular substitutions
+    msub:={}:
+    #Staggering constraints
+    staggeringConstraints:={}:
+    staggerers:={}:
+    #List of Q things for later
+    Qlist:=[]:
+    plainQlist:=[]:
+    #Max Q constant
+    maxQ:=0:
+    #Variables
+    hvar:={}:
+    kvar:={}:
+    #Substitutions for symbolic Q's
+    subh:={}:
+    unsubh:={}:
+    hind:=0:
+    #mindex and defvalue
+    mindex:=vsol[t_mindex]:
+    defvalue:=vsol[t_defvalue]:
+    defvar:=vsol[t_defvar]:
+    
+    #Register the inequalities
+    for s in ineqs do
+        ExtractQs(s, false):
+    od:
+    
+    #Grab the modularity constraints
+    kind:=0:
+    for s in vsol[t_bmods] do
+        #Left side
+        v:=op(1, s):
+        #Right side
+        w:=op(2, s):
+        #Modularity constraint needed
+        msub:=msub union {v = w}:
+        #Register potential Q
+        i:=v = w + m*k[kind]:
+        ExtractQs(i):
+        absConstraints:=absConstraints union {i}:
+        kvar:=kvar union {k[kind]}:
+        kind:=kind+1:
+    od:
+    
+    #Grab the equality constraints
+    for s in vsol[t_eqc] do
+        ExtractQs(s):
+        absConstraints:=absConstraints union {s}:
+    od:
+    
+    #Find Q constraints from Qlist
+    for i from 1 to nops(Qlist)-1 do
+        for j from i+1 to nops(Qlist) do
+            v:=Qlist[i]:
+            w:=Qlist[j]:
+            if v[1] = w[1] then
+                absConstraints:=absConstraints union {v[2] = w[2]}:
+            else
+                #Check modularity consistency
+                eb:=evalb2(subs(msub, v[1] = w[1]) mod m):
+                if eb <> -1 then
+                    #Ok, it might still happen
+                    condConstraints:=condConstraints union {[v[1] = w[1], v[2] - w[2] = 0]}:
+                fi:
+            fi:
+        od:
+    od:
+    
+    #Find Q contraints from Q's colliding by accident
+    for i from 1 to nops(plainQlist)-1 do
+        for j from i+1 to nops(plainQlist) do
+            v:=plainQlist[i]:
+            w:=plainQlist[j]:
+            #Might they collide?
+            eb:=evalb2(op(1, v) = op(1, w)):
+            if eb <> -1 then
+                #They might collide
+                condConstraints:=condConstraints union {[op(1, v) = op(1, w), v = w]}:
+            fi:
+        od:
+    od:
+    
+    #Substitute the h values
+    absConstraints:=subs(subh, absConstraints):
+    condConstraints:=subs(subh, condConstraints):
+    staggerers:=subs(subh, staggerers):
+    
+    #Solve the equalities
+    nc:=true:
+    while nc do
+        #We may need to repeat some number of times, since we
+        #may be adding absolute equality constraints
+        nc:=false:
+        soleq:=isolve(FilterConstraints(absConstraints, no={k})):
+        if soleq = NULL then
+            #There were no solutions
+            if verbose then
+                print("Absolute equality constraints inconsistent"):
+            fi:
+            return false:
+        fi:
+        
+        #Analyze the conditional constraints
+        cc:={}:
+        for i from 1 to nops(condConstraints) do
+            ci:=subs(soleq, condConstraints[i][1]):
+            eb:=evalb2(ci):
+            if eb = 1 then
+                #Hypothesis of the constraint is guaranteed to happen
+                eb2:=evalb2(subs(soleq, condConstraints[i][2])):
+                if eb2 = -1 then
+                    #Conclusion of the constraint is guaranteed not to happen
+                    #In other words, the constraint is unsatisfiable
+                    if verbose then
+                        print("Unsatisfiable conditional constraint"):
+                    fi:
+                    return false:
+                elif eb2 = 0 then
+                    #Conclusion may still be satisfiable
+                    #but now it is an absolute constraint
+                    nc:=true:
+                    absConstraints:=absConstraints union {condConstraints[i][2]}:
+                fi:
+            elif eb = 0 then
+                
+                #Hypothesis may be satisfiable, but may not be
+                #Check modularity consistency
+                if type(ci, `=`) and OnlyVars(ci, b) then
+                    eb2:=evalb2(subs(msub, ci) mod m):
+                else
+                    eb2:=0:
+                fi:
+                if eb2 <> -1 then
+                    #Ok, it might still happen
+                    #Check for foregone conclusion
+                    eb2:=evalb2(subs(soleq, condConstraints[i][2])):
+                    if eb2 <> 1 then
+                        #Conclusion may still fail
+                        cc:=cc union {condConstraints[i]}:
+                    fi:
+                fi:
+            fi:
+        od:
+        condConstraints:=cc:
+    od:
+    
+    if level = 1 then
+        #We made it this far.  That's good enough.
+        return true:
+    fi:
+    
+    #Sanity check with no conditional constraints
+    sol:=satisfyConstraints(FilterConstraints(absConstraints, types={`=`, `<=`})):
+    if sol = false then
+        #We're actually insane
+        if verbose then
+            print("Absolute linear constraints not satisfiable"):
+        fi:
+        return false:
+    elif sol = true then
+        #We can't proceed
+        return true:
+    fi:
+    
+    soleq:=solve(FilterConstraints(absConstraints)):
+    if soleq = NULL then
+        #There were no solutions
+        if verbose then
+            print("Modified absolute equality constraints inconsistent"):
+        fi:
+        return false:
+    fi:
+    absConstraints:=(absConstraints minus FilterConstraints(absConstraints)) union soleq:
+    
+    #See how much staggering is possible
+    lastb:=maxQ:
+    stagchoices:=[false]:
+    for i in staggerers do        
+        sol:=satisfyConstraints(FilterConstraints(absConstraints, types={`=`, `<=`}) union staggeringConstraints):
+        if sol = false then
+            #This stagger is not possible
+        else
+            #This stagger is possible
+            staggeringConstraints:=staggeringConstraints union {loosen(i < lastb-maxQ)}:
+            lastb:=i:
+            stagchoices:=[true, false]:
+        fi:
+    od:
+    
+    #Separate types of conditional constraints
+    condeqConstraints:=[]:
+    condineqConstraints:=[]:
+    for cc in condConstraints do
+        if type(cc[1], `=`) then
+            condeqConstraints:=[op(condeqConstraints), cc]:
+        else
+            condineqConstraints:=[op(condineqConstraints), cc]:
+        fi:
+    od:
+    
+    #Iterate through inequality conditional constraints
+    #0 means make it false
+    #1 means make it true
+    clist:=[0$nops(condineqConstraints)]:
+    for staggering in stagchoices do
+        if REPORT_STAGGERING_FAILURES and staggering = false then
+            print("We are not staggering"):
+            print(vsol):
+        fi:
+        extraConstraints:={}:
+        if staggering then
+            extraConstraints:=extraConstraints union {op(staggeringConstraints)}:
+        fi:
+        while true do
+            moreConstraints:={}:
+            for i from 1 to nops(clist) do
+                if clist[i] = 0 then
+                    moreConstraints:=moreConstraints union {loosen(neg(condineqConstraints[i][1]))}:
+                else
+                    moreConstraints:=moreConstraints union {op(condineqConstraints[i])}:
+                fi:
+            od:
+            
+            #Look for solutions
+            sol:=satisfyConstraints(absConstraints union moreConstraints, extraConstraints, condeqConstraints):
+            if sol <> false then
+                #We did it!!!
+                if sol = true then
+                    return sol:
+                else
+                    return op(1..2, sol), subh, unsubh:
+                fi:
+            fi:
+            
+            #Increment clist
+            for i from 1 to nops(clist) do
+                if clist[i] = 0 then
+                    clist[i]:=1:
+                    break:
+                else
+                    clist[i]:=0:
+                fi:
+            od:
+            if not(1 in clist) then
+                break:
+            fi:
+        od:
+    od:
+    #The constraints were unsatisfiable once conditionals were
+    #factored into the picture
+    if verbose then
+        print("Constraints exhausted unsuccessfully"):
+    fi:
+    return false:
+end:
+
+#Make the modular values smaller, if possible
+AdaptiveBShrinking:=proc(m::integer, soln::table, constraints::set, Q::symbol, b::symbol, h::symbol, k::symbol, depthlimit::integer:=-1)
+local B, nconstraints, i, FACTOR, newm, sol, oldsol, optvars, ConstructB, nconstraint, ok, everok, cmp:
+option remember:
+    #Comparator for sorting
+    cmp:=proc(l1, l2)
+        if abs(l1[2]) > abs(l2[2]) then
+            #First one is bigger numerically
+            return true:
+        elif abs(l1[2]) < abs(l2[2]) then
+            #Second one is bigger numerically
+            return false:
+        elif type(l1[1], indexed) and not(type(l2[1], indexed)) then
+            #First one is indexed, so should precede second one
+            return true:
+        elif type(l2[1], indexed) and not(type(l1[1], indexed)) then
+            #Second one is indexed, so should precede first one
+            return false:
+        elif type(l1[1], indexed) and type(l2[1], indexed) then
+            if op(0, l1[1]) = b and op(0, l2[1]) = h then
+                #b's should come before h's
+                return true:
+            elif op(0, l1[1]) = h and op(0, l2[1]) = b then
+                #b's should come before h's
+                return false:
+            else
+                #Sort in increasing order of index
+                return op(1, l1[1]) <= op(1, l2[1]):
+            fi:
+        else
+            #Sort in increasing lexicographic order of name
+            return convert(l1[1], string) <= convert(l1[2], string):
+        fi:
+    end:
+    
+    #Construct B list, sorted properly
+    ConstructB:=proc() local optvar, ret:
+        #Construct a listing of variables sorted in decreasing
+        #absolute value, with b's before h's
+        ret:=[seq([optvar, subs(sol, optvar)], optvar in optvars)]:
+        ret:=sort(ret, cmp):
+        return ret:
+    end:
+    
+    FACTOR:=2:
+    sol:=soln[Q]:
+    #Figure out which variables are optimizable
+    optvars:=indets(soln[Q]):
+    for i from 1 to m do
+        if b[i-1] in indets(constraints) then
+            optvars:=optvars union {b[i-1]}:
+            sol:=sol union {b[i-1] = soln[b][i]}:
+        fi:
+    od:
+    oldsol:=sol:
+    everok:=false:
+    nconstraints:=constraints:
+    while nops(optvars) > 0 do
+        B:=ConstructB():
+        newm:=floor(abs(B[1][2])/FACTOR):
+        if newm >= abs(B[1][2]) then
+            ok:=false:
+        else
+            nconstraint:={B[1][1]<=newm, B[1][1]>=-newm}:
+            #Add more constraints so that nothing else blows up
+            for i from 2 to nops(B) do
+                nconstraint:=nconstraint union {B[i][1]<=abs(B[i][2]), B[i][1]>=-abs(B[i][2])}:
+            od:
+            sol:=PSolve(nconstraints union nconstraint, ':-depthlimit'=depthlimit):
+            ok:=evalb(sol <> false):
+        fi:
+        if ok then
+            everok:=true:
+            nconstraints:=nconstraints union nconstraint:
+            oldsol:=sol:
+        else
+            optvars:=optvars minus {B[1][1]}:
+            sol:=oldsol:
+        fi:
+    od:
+    #Look for symbols
+    #Get rid of them
+    if everok then
+        return FinalizeSolution(m, oldsol, Q, b, k):
+    else
+        return op(soln):
+    fi:
+end:
+
+#Very Finalize a solution
+VeryFinalizeSolution:=proc(m::integer, vsol::table, sol::table, Q::symbol, b::symbol, h::symbol, subh::set, unsub::set, generalQ::boolean, largesymbols::boolean, symbolics::set, extrafrees::set)
+local ret, sub, subinto, extrasub, i, j, newQ, genQ, inds, nconstr, ac, aa, abvars, eqc, negsub, tem, a2, ctr, abl, absubvars, badab, solQ, subvars, varsubs, v, FetchDependents, deps, mindex, defvalue, defvar:
+    #Subroutine for finding dependent things inside an expression
+    FetchDependents:=proc(expr) local inds, i:
+        if type(expr, numeric) then
+            return {}:
+        elif type(expr, symbol) then
+            return {expr}:
+        elif type(expr, expr_type) then
+            inds:=indets(op(1, expr)):
+            if nops(inds) = 0 then
+                return {expr}:
+            else
+                return `union`(seq(FetchDependents(i), i in inds)):
+            fi:
+        fi:
+    end:
+    
+    #Set up the return
+    ret:=table():
+    ret[b]:=sol[b]:
+    sub:={seq(b[i-1]=ret[b][i], i=1..m)}:
+    solQ:=subs(unsub, sol[Q]):
+    mindex:=vsol[t_mindex]:
+    defvalue:=vsol[t_defvalue]:
+    defvar:=vsol[t_defvar]:
+    eqc:=vsol[t_eqc]:
+    
+    #Unsub the h's
+    if generalQ then
+        #Figure out which Q's are necessary (a la FindQgSolution)
+        genQ:=subs(unsub, solve(subs(sub, FilterConstraints(subs(subh, eqc), yes={h}, linear=false)), indets(sol[Q]))):
+        ret[Q]:=genQ:
+    else
+        genQ:={}:
+        ret[Q]:=solQ:
+    fi:
+    subvars:={}:
+    varsubs:={}:
+    while true do
+        extrasub:={}:
+        subinto:={}:
+        for i in solQ do
+            j:=op(1, i):
+            if type(j, expr_type) and op(0, j) = Q and nops(indets(op(1, j))) > 0 then
+                deps:=FetchDependents(j):
+                #Needs to be subbed into
+                subinto:=subinto union {i}:
+                subvars:=subvars union deps:
+                varsubs:=varsubs union {seq(v = subs(solQ, v), v in deps)}:
+            else
+                #Needs to be subbed in
+                extrasub:=extrasub union {i}:
+            fi:
+        od:
+        if nops(subinto) = 0 then
+            #We're done
+            break:
+        fi:
+        #Do the sub
+        newQ:=extrasub union subs(sub union extrasub, subinto):
+        genQ:=subs(sub union extrasub, genQ):
+        solQ:=newQ:
+    od:
+    varsubs:=cleanup(varsubs):
+    #Plug in substitutions
+    while true do
+        tem:={}:
+        for i in ret[Q] do
+            if op(1, i) in subvars then
+                tem:=tem union {op(1, i) = subs(sub union varsubs, op(2, i))}:
+            else
+                tem:=tem union {subs(sub union varsubs, i)}:
+            fi:
+        od:
+        if tem = ret[Q] then
+            break:
+        fi:
+        ret[Q]:=tem:
+    od:
+    ret[Q]:=cleanup(ret[Q]):
+    #Remove nonpositive index things
+    negsub:={}:
+    for i in indets(ret[Q]) do
+        if type(i, expr_type) and op(0, i) = Q and op(1, i) < mindex then
+            negsub:=negsub union {i = subs(defvar=op(1, i), defvalue)}:
+        fi:
+    od:
+    ret[Q]:=subs(negsub, ret[Q]):
+    tem:=solve(ret[Q], indets(ret[Q]) minus (symbolics intersect abvars)):
+    if tem = NULL then
+        tem:=solve(ret[Q]):
+    fi:
+    ret[Q]:=cleanup(tem):
+    #Remove symbolic b if they were forced earlier
+    ret[b]:=subs(ret[Q], ret[b]):
+    return ret:
+end:
+
+#Check the feasibility of an output from QgSearchAB
+#Returns a B value if it finds one
+#If it gives up (due to level being lower than VERY_HIGH), returns true
+#If it fails, returns false
+CheckFeasibility:=proc(m::integer, vsol::table, Q::symbol, b::symbol, n::symbol, {level::integer:=DEF_LEVEL, small::boolean:=true, verbose::boolean:=false, structlaws::boolean:=true, depthlimit::integer:=-1, ineqs::set:={}, generalQ::boolean:=false, largesymbols::boolean:=true, symbolics::set:={}, extrafrees::set:={}})
+local constraints, h, k, BB, v, dnf, sls, sl, i, j, cur, unsub, ret, sub:
+    BB:=BuildAB(m, vsol, Q, b, n, h, k, ':-level'=level, ':-verbose'=verbose, ':-depthlimit'=depthlimit, ':-ineqs'=ineqs):
+    if BB = true then
+        return true:
+    elif BB = false then
+        return false:
+    else
+        ret, constraints, sub, unsub:=BB:
+    fi:
+    if small then
+        ret:=AdaptiveBShrinking(m, ret, constraints, Q, b, h, k, ':-depthlimit'=depthlimit):
+    fi:
+    return VeryFinalizeSolution(m, vsol, ret, Q, b, h, sub, unsub, generalQ, largesymbols, symbolics, extrafrees):
+end:
+
+#Convert boolean things involving a's to sets of allowable a's
+AStructureConvert:=proc(aexpr) local e1, e2, tp:
+    e1:=op(1, aexpr):
+    e2:=op(2, aexpr):
+    if type(aexpr, `or`) then
+        return AStructureConvert(e1) union AStructureConvert(e2):
+    elif type(aexpr, `and`) then
+        if type(e1, `<=`) then
+            if type(op(1, e1), expr_type) then
+                tp:=e1:
+                e1:=e2:
+                e2:=tp:
+            fi:
+            return {seq(tp, tp=op(1, e1)..op(2, e2))}:
+        else
+            return AStructureConvert(e1) intersect AStructureConvert(e2):
+        fi:
+    fi:
+end:
+
+#Check to see if structure is satisfied in a single coordinate
+#a here should be indexed a
+StructureSatisfied:=proc(m, a, descr, aval, growth)
+local oper, i, g1, g2:
+    if type(growth, indexed) then
+        g1:=op(1, growth):
+        g2:=op(2, growth):
+        if op(0, growth) = DEGR then
+            #Degree structure element
+            #Need the actual degree to be in the
+            #specified closed interval of degrees
+            return evalb(g1 >= 0 and g1 <= descr and descr <= g2 and ((aval < infinity and aval > 0) implies descr = 1) and (aval = 0 implies descr = 0) and (descr = 0 implies aval = 0)):
+        elif op(0, growth) = SLP then
+            #Slope structure element
+            if descr <> 1 then
+                #Can't have slope for something nonlinear
+                return false:
+            elif g1 > g2 or g2 < 1 or g2 = infinity then
+                #Interval needs to be nonempty and bounded
+                return false:
+            else
+                if aval = infinity then
+                    #It better be steep
+                    #Force the steepness
+                    return evalb(g2 > 1 and m*g1 <= a and a <= m*g2):
+                else
+                    #Check if right steepness
+                    return evalb(m*g1 <= aval and aval <= m*g2):
+                fi:
+            fi:
+        else
+            #Unrecognized structure element
+            return FAIL:
+        fi:
+    else
+        #Boolean combination of smaller structure elements
+        oper:=op(0, growth):
+        return evalb(oper(seq(StructureSatisfied(m, a, descr, aval, op(i, growth)), i=1..nops(growth)))):
+    fi:
+end:
+
+#Check to see if structure is satisfiable in a single coordinate
+StructureSatisfiable:=proc(m, aval, growth)
+local oper, i, g1, g2:
+    if type(growth, indexed) then
+        g1:=op(1, growth):
+        g2:=op(2, growth):
+        if op(0, growth) = DEGR then
+            #Degree structure element
+            #Need the actual degree to be in the
+            #specified closed interval of degrees
+            if g1 > g2 then
+                #Interval out of order
+                return false:
+            elif g2 < 0 then
+                #Negative interval
+                return false:
+            elif aval = 0 then
+                #Need 0 to be an allowable degree
+                return evalb(g1 <= 0 and 0 <= g2):
+            elif aval < m then
+                #Can't have these a values
+                return false:
+            elif aval < infinity then
+                #Need 1 to be an allowable degree
+                return evalb(g1 <= 1 and 1 <= g2):
+            else
+                #Need 1 or greater to be an allowable degree
+                return evalb(1 <= g2):
+            fi:
+        elif op(0, growth) = SLP then
+            #Slope structure element
+            if g1 > g2 or g2 < 1 or g2 = infinity then
+                #Interval needs to be nonempty and bounded
+                return false:
+            elif aval = infinity then
+                #Need possibility of slope greater than 1
+                return evalb(g2 > 1):
+            elif aval >= m then
+                #Need slope to work out
+                return evalb(m*g1 <= aval and aval <= m*g2):
+            else
+                return false:
+            fi:
+        else
+            #Unrecognized structure element
+            return FAIL:
+        fi:
+    else
+        #Boolean combination of smaller structure elements
+        oper:=op(0, growth):
+        return evalb(oper(seq(StructureSatisfiable(m, aval, op(i, growth)), i=1..nops(growth)))):
+    fi:
+end:
+
+#Extract the structure
+ExtractStructure:=proc(m, structure) local deft, struct, i:
+    if nops(structure) >=1 and (type(op(1, structure), list) or type(op(-1, structure), list)) then
+        struct:=Array([0$m]):
+        deft:=ANY:
+        for i from 1 to nops(structure) do
+            if not(type(structure[i], list)) then
+                deft:=structure[i]:
+            else
+                struct[structure[i][1]+1]:=structure[i][2]:
+            fi:
+        od:
+        for i from 1 to m do
+            if struct[i] = 0 then
+                struct[i]:=deft:
+            fi:
+        od:
+    elif nops(structure) >= m then
+        struct:=structure[1..m]:
+    else
+        struct:=[op(structure), ANY$(m-nops(structure))]:
+    fi:
+    return convert(struct, list):
+end:
+
+#Replace [ with ( for Q's if ( is the specified symbol
+InstillProperBrackets:=proc(expr, Q, bk)
+local inds, ind, sb, ret, Bracketize:
+    Bracketize:=proc(expr)
+        if bk = "(" then
+            return Q(expr):
+        else
+            return Q[expr]:
+        fi:
+    end:
+    inds:=indets(expr):
+    sb:={}:
+    for ind in inds do
+        if type(ind, expr_type) and op(0, ind) = Q then
+            sb:=sb union {ind=ProcessQg(ind, Q, Bracketize)}:
+        fi:
+    od:
+    #print(sb):
+    return subs(sb, expr):
+end:
+
+#Replace [ with ( for Q's if ( is the specified symbol
+InstillProperBracketsTable:=proc(vsol, Q, bk, ignores)
+local i, ret:
+    ret:=table(vsol):
+    for i in indset(ret) do
+        if not(i in ignores) and type(ret[i], table) then
+            ret[i]:=InstillProperBracketsTable(ret[i], Q, bk, ignores):
+        elif not(i in ignores) then
+            ret[i]:=InstillProperBrackets(ret[i], Q, bk):
+        fi:
+    od:
+    return op(ret):
+end:
+
+#QgSearchAB
+#$GEN("QgSearchAB")
+QgSearchAB:=proc({Q::symbol:=':-Q', a::symbol:=':-a', b::symbol:=':-b', n::symbol:=':-n', rec:=HOF, A::list:=[0], B:=[[0,0]], defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, depthlimit::integer:=-1, extras::set:={}, forcesymbols::boolean:=false, generalQ::boolean:=false, ic::integer:=IC_FULL, icconstr::list(set):=[], icsmall::boolean:=true, ineqs::set:={}, largesymbols::boolean:=true, level::integer:=DEF_LEVEL, mindex::integer:=DEF_MINDEX, miniclength::integer:=0, nodeath::boolean:=false, optlengthic::boolean:=true, small::boolean:=true, structure::list:=[], symbolics::set:={}, timeout::extended_numeric:=infinity, verbose::boolean:=false})
+local m, Qt, S, C, O, BB, Bs, Qs, i, ret, Ic, Bb, mextras, Operate, rrec, theIneqs, theIcconstr, CombineIcconstr, fsymbolics, cc, cc0, asymbolics, newval, theExtras, struct, Aa, Btbl, actr, NotSteep, ProcessAB, dun, Blist, recsys, descrs, steepness, slaws, slaw, aSearch:    
+    NotSteep:=proc(expr) local ind:
+        for ind in indets(expr) do
+            if type(ind, expr_type) and op(0, ind) = Q and coeff(op(1, ind), n, 1) <> 0 then
+                return false:
+            fi:
+        od:
+        return coeff(expr, n, 1) <= m and expr = coeff(expr, n, 1)*n + coeff(expr, n, 0):
+    end:
+    
+    #Auxiliarized so it can easily be broken out of
+    ProcessAB:=proc(A, maybeforms) local vsol, forms, eq, ineq, avals, feas, i, neq, nineq, j, RegisterA:   
+        #Auxiliary procedure for registering an A entry
+        #Returns the set of equations and inequalities to add
+        #Also returns changes to forms
+        RegisterA:=proc(i, A) local eq, ineq, formret, val2, ind, avalret:
+            eq:={}:
+            ineq:={}:
+            formret:=forms[i]:
+            avalret:=avals[i]:
+            if descrs[i] <= 1 then
+                if A[i] = infinity then
+                    #Force steepness
+                    if steepness[i] <> 0 then
+                        ineq:=ineq union {steepness[i]}:
+                    fi:
+                else
+                    for ind in indets(formret) do
+                        if op(0, ind) = Q then
+                            val2:=PlugInQMod(m, Q, convert(avals, list), Blist, n, op(ind), op(op(Btbl))):
+                            if val2 = ind and coeff(op(1, val2), n, 1) > 0 then
+                                #Slope forcing contradiction
+                                #TODO revisit this (mixing infinities with steep slopes)
+                                if verbose then
+                                    print("Slope forcing not supported"):
+                                fi:
+                                return -1$4:
+                            fi:
+                            formret:=subs(ind=val2, formret):
+                        fi:
+                    od:
+                    eq:=eq union {coeff(formret, n, 0) = b[i-1]}:
+                    avalret:=coeff(formret, n, 1):
+                fi:
+            fi:
+            return eq, ineq, formret, avalret:
+        end:
+             
+        #Forms?
+        if aSearch then
+            #We need to generate the forms
+            forms, ineq:=GetQGuessExpr(Q, A, [seq(b[i-1], i=1..m)], n, ':-rec'=rrec, mods=convert(op(op(Btbl)), set), inequalities=true, ':-nodeath'=nodeath, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar):
+            ineq:=ineqs union ineq:
+        else
+            #We can just take the forms
+            forms:=maybeforms:
+            ineq:=theIneqs:
+        fi:
+        
+        #Equations
+        eq:=theExtras:
+        #A vals
+        avals:=A:
+        
+        #Arrays
+        forms:=Array(forms):
+        avals:=Array(avals):
+        
+        #Start the search
+        for i from 1 to m do
+            neq, nineq, forms[i], avals[i]:=RegisterA(i, A):
+            if neq = -1 then
+                return NULL:
+            fi:
+            eq:=eq union neq:
+            ineq:=ineq union nineq:
+        od:
+        
+        #Lists
+        forms:=convert(forms, list):
+        avals:=convert(avals, list):
+        
+        #Look for slope contradictions
+        #and infinity contradictions
+        #(e.g. TwoSteepLins5)
+        for i from 1 to m do
+            if A[i] < infinity and coeff(forms[i], n, 1) <> A[i] then
+                if verbose then
+                    print("Slope contradiction"):
+                fi:
+                return NULL:
+            elif A[i] = infinity and NotSteep(forms[i]) then
+                if verbose then
+                    print("Infinity contradiction"):
+                fi:
+                return NULL:
+            fi:
+        od:
+        
+        #Look for simple modular contradictions
+        for i in eq do
+            j:=subs(op(op(Btbl)), i):
+            if type(op(1, j), integer) and type(op(2, j), integer) and op(1, j) mod m <> op(2, j) mod m then
+                #Simple modularity contradiction
+                if verbose then
+                    print("Simple modular contradiction"):
+                fi:
+                return NULL:
+            fi:
+        od:
+        
+        vsol:=table({t_avals=avals, t_bmods=convert(op(op(Btbl)), set), t_eqc=eq, t_mindex=mindex, t_defvalue=defvalue, t_defvar=defvar}):
+        #Reduce the inequality set
+        ineq:=ReduceIneqs(ineq):
+        if ineq = {1 <= 0} then
+            if verbose then
+                print("Inconsistent inequality constraints"):
+            fi:
+            return NULL:
+        fi:
+        if verbose then
+            printf("Constraint system: %a, %a\n", op(vsol), ':-ineqs'=ineq):
+            printf("Heading to consistency test\n"):
+        fi:
+        
+        try:
+            feas:=CheckFeasibility(m, vsol, Q, b, n, ':-level'=level, ':-small'=small, ':-verbose'=verbose, ':-depthlimit'=depthlimit, ':-ineqs'=ineq, ':-generalQ'=generalQ, ':-largesymbols'=largesymbols, ':-symbolics'=symbolics):
+        catch:
+            #Solve/isolve don't work so well with variables
+            #raised to other variable powers.
+            #This is a cop-out for that case.
+            print("An error occurred.  Some solutions may have been lost."):
+            if verbose then
+                print(sprintf("The error: %q", lastexception)):
+            fi:
+            return NULL:
+        end try:
+        if feas <> false then
+            #Set up return object
+            vsol[t_forms]:=[seq(forms[i], i=1..m)]:
+            vsol[t_ineqs]:=ineq:
+            vsol[t_descr]:=descrs:
+            if feas <> true then
+                vsol[t_sample]:=op(feas):
+            else
+                vsol[t_sample]:="Insufficient level to find a sample":
+            fi:
+            return op(vsol):
+        else
+            if verbose then
+                print("Constraints were not satisfiable"):
+            fi:
+            return NULL:
+        fi:
+    end:
+    
+    #m
+    m:=nops(A):   
+    #Subroutine for combining initial condition constraints
+    CombineIcconstr:=proc() local i:
+        if nops(icconstr) = m then
+            for i from 1 to m do
+                theIcconstr[i]:=theIcconstr[i] union icconstr[i]:
+            od:
+        fi:
+    end:
+    
+    #Compile the recurrence
+    rrec:=CompileRec(rec):
+    #Extras
+    theExtras:=extras:
+    #Extract the structure
+    struct:=ExtractStructure(m, structure):
+    #Set up B
+    if type(B, list) and (nops(B) = 0 or type(B[1], list)) then
+        if nops(B) > 0 and type(B[1][1], expr_type) then
+            #In necessary form
+            BB:=B:
+        else
+            #b's omitted
+            BB:=[seq([b[B[i][1]], B[i][2]], i=1..nops(B))]:
+        fi:
+    elif type(B, list) then
+        #Actual values given
+        #They (almost) all matter now
+        BB:=[]:
+        #Force exact values
+        for i from 1 to m do
+            if type(B[i], integer) then
+                BB:=[op(BB), [b[i-1], B[i] mod m]]:
+                theExtras:=theExtras union {b[i-1] = B[i]}:
+            fi:
+        od:
+    elif type(B, set) then
+        #Given in set of equalities form
+        BB:=[seq([op(i)], i in B)]:
+    else
+        error("B must be either a list or a set"):
+    fi:
+    #Build the B table
+    Btbl:=table():
+    for i from 1 to nops(BB) do
+        Btbl[BB[i][1]]:=BB[i][2]:
+    od:
+    Blist:=[seq(b[i-1], i=1..m)]:
+    #Patch up Q expression
+    Qt, theIneqs:=GetQGuessExpr(Q, A, [seq(b[i-1], i=1..m)], n, ':-rec'=rrec, mods=convert(op(op(Btbl)), set), inequalities=true, ':-nodeath'=nodeath, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar):
+    theIcconstr:=GetQGuessExpr(Q, A, [seq(b[i-1], i=1..m)], n, ':-rec'=rrec, mods=convert(op(op(Btbl)), set), inequalities=true, icconstraints=true, ':-nodeath'=nodeath, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar, shallow=true)[3]:
+    if theIneqs = FAIL or Qt = FAIL then
+        #Either looked into the future
+        #or tried to do something else bad
+        return NULL:
+    fi:
+    theIneqs:=ineqs union theIneqs:
+    CombineIcconstr():
+    
+    #Do recurrence/structure stuff
+    #Recurrence system
+    recsys:=GetRecurrenceSystem(Q, a, n, Qt, op(op(Btbl))):
+    #Figure out what everyone is
+    descrs, steepness:=GetDescrs(a, n, recsys, true):
+    if verbose then
+        print("Descriptions:", descrs):
+        print("Steepness Constraints:", steepness):
+    fi:
+    #Check the structure
+    slaws:=Array([0$m]):
+    for i from 1 to m do
+        slaw:=StructureSatisfied(m, a[i-1], descrs[i], A[i], struct[i]):
+        if slaw = false then
+            if verbose then
+                print("Structural mismatch"):
+            fi:
+            return NULL:
+        elif slaw <> true then
+            slaws[i]:=convert(AStructureConvert(slaw), list):
+            if slaws[i] = [] then
+                if verbose then
+                    print("Specified slopes cannot coexist"):
+                fi:
+                return NULL:
+            fi:
+        fi:
+    od:
+    slaws:=convert(slaws, list):
+    
+    if verbose then
+        print("Structure laws:", slaws):
+    fi:
+    
+    #Make a guesses
+    actr:=Array([0$m]):
+    aSearch:=false:
+    for i from 1 to m do
+        if type(slaws[i], list) then
+            actr[i]:=1:
+            aSearch:=true:
+        fi:
+    od:
+    
+    while true do
+        #Use a guesses to linearize
+        Aa:=A:
+        for i from 1 to m do
+            if actr[i] > 0 then
+                Aa[i]:=slaws[i][actr[i]]:
+                if verbose then
+                    printf("Now guessing %a\n", a[i-1] = Aa[i]):
+                fi:
+            fi:
+        od:
+        #Core operation
+        #Try it
+        newval:=ProcessAB(Aa, Qt):
+        if newval <> NULL then
+            if verbose then
+                printf("It worked!\n"):
+            fi:
+            #Augment the table with argument stuff
+            newval[t_rec]:=table(op(rrec)):
+            newval[t_qrefs]:=GetQGuessExpr(Q, A, [seq(b[i-1], i=1..m)], n, ':-rec'=rrec, mods={seq(BB[i][1]=BB[i][2], i=1..nops(BB))}, preservefirst=true, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar):
+            newval[t_Q]:=Q:
+            newval[t_a]:=a:
+            newval[t_b]:=b:
+            newval[t_n]:=n:
+            newval[t_m]:=m:
+            if ic <> IC_NONE then
+                fsymbolics:={}:
+                if forcesymbols then
+                    for cc in newval[t_sample][Q] do
+                        cc0:=op(1, cc):
+                        if type(cc0, expr_type) and op(0, cc0) = Q then
+                            fsymbolics:=fsymbolics union indets(op(2, cc)):
+                        fi:
+                    od:
+                fi:
+                newval[t_symbolics]:=symbolics union fsymbolics:
+                #Do sample initial condition if requested
+                if ic = IC_FULL or ic = IC_DEFAULT then
+                    newval[t_ic], newval[t_sampicconstr]:=FindIC(newval, ':-largesymbols'=largesymbols, ':-timeout'=timeout, ':-small'=icsmall, extraicconstr=icconstr, ':-miniclength'=miniclength, ':-optlengthic'=optlengthic):
+                elif ic = IC_LAZY then
+                    newval[t_ic], newval[t_sampicconstr]:=FindLazyIC(newval, ':-timeout'=timeout, ':-linsearch'=linsearch, ':-miniclength'=miniclength):
+                else
+                    newval[t_ic]:=FAIL:
+                    newval[t_sampicconstr]:="Unknown IC option":
+                fi:
+                newval[t_icconstr]:=icconstr:
+                newval[t_largesymbols]:=largesymbols:
+            fi:
+            #Replace brackets with parentheses if necessary
+            newval:=InstillProperBracketsTable(newval, newval[t_Q], newval[t_rec][t_bracket], {t_rec}):
+            return op(newval):
+        elif verbose then
+            printf("It didn't work\n"):
+        fi:
+        #Update a-counter
+        dun:=false:
+        for i from 1 to m+1 do
+            if i = m+1 then
+                dun:=true:
+                break:
+            elif actr[i] > 0 then
+                if actr[i] < nops(slaws[i]) then
+                    actr[i]:=actr[i] + 1:
+                    break:
+                else
+                    actr[i]:=1:
+                fi:
+            fi:
+        od:
+        if dun then
+            #Failed to find anything
+            if verbose then
+                print("Search Failed"):
+            fi:
+            break:
+        fi:
+    od:
+    #Didn't find anything
+    return NULL:
+end:
+
+#Just check ONE A
+#$GEN("QgSearchA")
+QgSearchA:=proc({Q::symbol:=':-Q', a::symbol:=':-a', b::symbol:=':-b', n::symbol:=':-n', rec:=HOF, A::list:=[0], ABverbose::boolean:=false, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, depthlimit::integer:=-1, extras::set:={}, forcesymbols::boolean:=false, generalQ::boolean:=false, ic::integer:=IC_NONE, icconstr::list(set):=[], icsmall::boolean:=true, ineqs::set:={}, largesymbols::boolean:=true, level::integer:=DEF_LEVEL, mindex::integer:=DEF_MINDEX, miniclength::integer:=0, mods::set:={}, nodeath::boolean:=false, optlengthic::boolean:=true, small::boolean:=true, smartb::extended_numeric:=0, structure::list:=[], symbolics::set:={}, timeout::extended_numeric:=infinity, verbose::boolean:=false})
+local m, Qt, Bs, Qs, ret, Bforces, force, Operate, i, j, k, B, rrec, myic, ind, consts, adjconsts, lins, ncs, bconstr, relinds, c, cc, l, nc, eq, var, ii, NextInd, GetSet, ctr, ctrcap, frees, sub, ok, GoForth, forbs, Fiterate, dun, bconstri, relindsi:
+    
+    ii:=0:
+    NextInd:=proc():
+        ii:=ii+1:
+        return ii:
+    end:
+    
+    GetSet:=proc(v)
+        if op(0, v) in {c, cc} then
+            return consts:
+        elif op(0, v) = l then
+            return lins:
+        else
+            return ncs:
+        fi:
+    end:
+    
+    #Main operation
+    GoForth:=proc(B) local BB, newval, Qt, theIneqs, theIcconstr:
+        BB:=[op(B), op(Bforces)]:
+        if verbose then
+            printf("Now testing B=%a\n", BB):
+        fi:
+        Qt, theIneqs, theIcconstr:=GetQGuessExpr(Q, A, [seq(b[i-1], i=1..m)], n, ':-rec'=rrec, ':-mods'={seq(BB[i][1]=BB[i][2], i=1..nops(BB))}, inequalities=true, icconstraints=true, ':-nodeath'=nodeath, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar):
+        if Qt <> FAIL and theIneqs <> FAIL then
+            theIneqs:=ineqs union theIneqs:
+            #$GEN("QgSearchA"; "QgSearchAB"; {"B"="BB", "rec"="rrec", "ic"="myic", "Bmatters"="Bs", "Qmatters"="Qs", "verbose"="ABverbose", "ineqs"="theIneqs", "icconstr"="theIcconstr"}; "            newval:="; {})
+            newval:={QgSearchAB(':-Q'=Q, ':-a'=a, ':-b'=b, ':-n'=n, ':-rec'=rrec, ':-A'=A, ':-B'=BB, ':-defvalue'=defvalue, ':-defvar'=defvar, ':-depthlimit'=depthlimit, ':-extras'=extras, ':-forcesymbols'=forcesymbols, ':-generalQ'=generalQ, ':-ic'=myic, ':-icconstr'=theIcconstr, ':-icsmall'=icsmall, ':-ineqs'=theIneqs, ':-largesymbols'=largesymbols, ':-level'=level, ':-mindex'=mindex, ':-miniclength'=miniclength, ':-nodeath'=nodeath, ':-optlengthic'=optlengthic, ':-small'=small, ':-structure'=structure, ':-symbolics'=symbolics, ':-timeout'=timeout, ':-verbose'=ABverbose)}:
+        else
+            #Either looked into the future
+            #or tried to do something else bad
+            if verbose then
+                printf("A bad (good?) thing happened. All tests insta-failed.\n"):
+            fi:
+            newval:={}:
+        fi:
+        if verbose and nops(newval) > 0 then
+            printf("Found %d solutions!\n", nops(newval)):
+        fi:
+        ret:=ret union newval:
+    end:
+    
+    #m
+    m:=nops(A):
+    #Compile the recurrence
+    rrec:=CompileRec(rec):
+    #Bs that matter
+    Bs:={}:
+    #IC stuff
+    myic:=ic:
+    if myic = IC_DEFAULT then
+        myic:=IC_NONE:
+    fi:
+    #Get the general form
+    Qt:=GetQGuessExpr(Q, A, [seq(b[i-1], i=1..m)], n, ':-rec'=rrec, ':-nodeath'=nodeath, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar):
+    if Qt = FAIL then
+            if verbose then
+                printf("A bad (good?) thing happened. All tests insta-failed.\n"):
+            fi:
+            return {}:
+    fi:
+    
+    #Initialize the thing that will be returned
+    ret:={}:
+    #Implement forced things
+    Bforces:=[]:
+    for force in mods do
+        Bforces:=[op(Bforces), [op(force)]]:
+    od:
+    
+    #Smart b's
+    if ListTools[Occurrences](0, A) >= smartb then
+        #Set of constants
+        consts:={}:
+        #Set of linears
+        lins:={}:
+        #Set of non-constants
+        ncs:={}:
+        #Set of constants that are not built entirely out of
+        #other constant guys
+        adjconsts:={}:
+        #relevant indeterminates
+        relinds:=[]:
+        for i from 1 to m do
+            relindsi:=[]:
+            if A[i] = 0 then
+                consts:=consts union {i-1}:
+            elif A[i] = m then
+                lins:=lins union {i-1}:
+                ncs:=ncs union {i-1}:
+            elif A[i] > m then
+                ncs:=ncs union {i-1}:
+            fi:
+            for ind in indets(Qt[i]) do
+                if op(0, ind) = Q and coeff(op(1, ind), n, 1) = m then
+                    relindsi:=[op(relindsi), [coeff(Qt[i], ind, 1), coeff(op(1, ind), n, 0)]]:
+                    Bs:=Bs union indets(coeff(op(1, ind), n, 0)):
+                elif A[i] = 0 then
+                    #Constant has a non-referential part
+                    adjconsts:=adjconsts union {i-1}:
+                fi:
+            od:
+            relinds:=[op(relinds), relindsi]:
+        od:
+        #b constraints
+        bconstr:=[]:
+        #forbidden things
+        forbs:=Array([{}$m]):
+        for i from 1 to m do
+            bconstri:=[]:
+            if A[i] = 0 then
+                if nops(relinds[i]) = 1 and relinds[i][1][1] = 1 then
+                    #Need the thing to reference a constant
+                    #Self-reference allowed here
+                    bconstri:=[solve({relinds[i][1][2] = c[i, NextInd()]}, indets(relinds[i][1][2])) mod m]:
+                else
+                    #Need all the things to reference constants
+                    #No self-reference allowed here
+                    eq:={}:
+                    var:={}:
+                    for j from 1 to nops(relinds[i]) do
+                        eq:=eq union {relinds[i][j][2] = c[i, NextInd()]}:
+                        forbs[i]:=forbs[i] union {i-1}:
+                        var:=var union indets(relinds[i][j][2]):
+                    od:
+                    bconstri:=[solve(eq, var) mod m]:
+                fi:
+            elif A[i] = m then
+                #Need all the things to reference constant
+                #Except for exactly one that refers to a linear
+                #And that linear must have coefficient 1
+                for j from 1 to nops(relinds[i]) do
+                    if relinds[i][j][1] = 1 then
+                        #This could be the one!
+                        eq:={relinds[i][j][2] = l[NextInd()]}:
+                        var:=indets(relinds[i][j][2]):
+                        for k from 1 to nops(relinds[i]) do
+                            if k <> j then
+                                eq:=eq union {relinds[i][k][2] = cc[NextInd()]}:
+                                var:=var union indets(relinds[i][k][2]):
+                            fi:
+                        od:
+                        bconstri:=[op(bconstri), solve(eq, var) mod m]:
+                    fi:
+                od:
+                #Can't have nothing here
+                if nops(bconstri) = 0 then
+                    if verbose then
+                        print("A linear piece didn't act linear enough."):
+                    fi:
+                    return {}:
+                fi:
+            elif A[i] > m then
+                #Need something not to refer to a constant
+                
+                #Can't have nothing here
+                if nops(relinds[i]) = 0 then
+                    if verbose then
+                        print("A steep piece was actually constant."):
+                    fi:
+                    return {}:
+                fi:
+                for j in powerset({seq(k, k=1..nops(relinds[i]))}) minus {{}} do
+                    #Indices in j are the non-constant ones
+                    eq:={}:
+                    var:={}:
+                    for k from 1 to nops(relinds[i]) do
+                        if k in j then
+                            eq:=eq union {relinds[i][k][2] = nc[NextInd()]}:
+                        else
+                            eq:=eq union {relinds[i][k][2] = cc[NextInd()]}:
+                        fi:
+                        var:=var union indets(relinds[i][k][2]):
+                    od:
+                    bconstri:=[op(bconstri), solve(eq, var) mod m]:
+                od:
+            fi:
+            bconstr:=[op(bconstr), bconstri]:
+        od:
+        
+        #Iterate
+        ctr:=Array([1$m]):
+        ctrcap:=[seq(nops(bconstr[i]), i=1..nops(bconstr))]:
+        while true do
+            #Get and solve equations
+            eq:=`union`(seq(bconstr[i][ctr[i]], i=1..m)):
+            eq:=solve(eq) mod m:
+            
+            if eq <> NULL then
+                #Find free variables
+                frees:=[]:
+                for i in eq do
+                    if op(1, i) = op(2, i) then
+                        if op(0, op(1, i)) = b then
+                            print("Something terrible happened"):
+                        fi:
+                        frees:=[op(frees), op(1, i)]:
+                    fi:
+                od:
+                
+                #Iteration sub-routine
+                Fiterate:=proc(i, forbs, vals)
+                local j, k, l, S, fbs, B, ok, vls, k1, tfbs:
+                    if i > nops(frees) then
+                        #We're done; clean up
+                        B:=[]:
+                        for j from 0 to m-1 do
+                            if b[j] in Bs then
+                                B:=[op(B), [b[j], subs(vals, b[j])]]:
+                            fi:
+                        od:
+                        GoForth(B):
+                        return:
+                    fi:
+                    #Forbidden guys to pass forward
+                    fbs:=Array(convert(forbs, list)):
+                    #Iterate through allowable values of first guy
+                    S:=GetSet(frees[i]):
+                    tfbs:={}:
+                    if op(0, frees[i]) = c then
+                        tfbs:=forbs[op(1, frees[i])]:
+                    fi:
+                    for j in S minus tfbs do
+                        #Build the substitution
+                        sub:={frees[i] = j}:
+                        #Do the substitution
+                        vls:={}:
+                        ok:=true:
+                        for k in vals do
+                            l:=subs(sub, op(2, k)) mod m:
+                            k1:=op(1, k):
+                            if type(l, integer) then
+                                if op(0, k1) = c and l in forbs[op(1, k1)] then
+                                    #Would cause illegal zero
+                                    ok:=false:
+                                    break:
+                                elif op(0, k1) in {c, cc} and A[l+1] <> 0 then
+                                    #Not constant
+                                    ok:=false:
+                                    break:
+                                elif op(0, k1) = l and A[l+1] <> m then
+                                    #Not linear
+                                    ok:=false:
+                                    break:
+                                elif op(0, k1) = nc and A[l+1] < m then
+                                    #Not not constant
+                                    ok:=false:
+                                    break:
+                                fi:
+                                #general principle: if a guy gets
+                                #set to something, if that
+                                #something is constant it
+                                #inherits all that guy's forbs
+                                #only works if l is not in adjconsts
+                                if op(0, k1) = c and not(l in adjconsts) then
+                                    fbs[l+1]:=fbs[l+1] union fbs[op(1, k1)]:
+                                fi:
+                            fi:
+                            vls:=vls union {k1 = l}
+                        od:
+                        if ok then
+                            Fiterate(i+1, fbs, vls):
+                        fi:
+                    od:
+                end:
+                
+                #Iterate through settings of free variables
+                Fiterate(1, forbs, eq):
+            fi:
+            
+            #Increment the counter
+            for i from m by -1 to 1 do
+                if ctr[i] = ctrcap[i] then
+                    ctr[i]:=1:
+                else
+                    ctr[i]:=ctr[i]+1:
+                    break:
+                fi:
+            od:
+            dun:=true:
+            for i from 1 to m do
+                if ctr[i] <> 1 then
+                    dun:=false:
+                    break:
+                fi:
+            od:
+            if dun then
+                break:
+            fi:
+        od:
+    else
+        #Dumb b's
+        
+        #Make Bs
+        for i from 1 to m do
+            for ind in indets(Qt[i]) do
+                if op(0, ind) = Q and coeff(op(1, ind), n, 1) = m then
+                    Bs:=Bs union indets(coeff(op(1, ind), n, 0)):
+                fi:
+            od:
+        od:
+    
+        #Go through B possibilities
+        B:=[seq([i, 0], i in Bs)]:
+        while true do
+            GoForth(B):
+            
+            #Increment the b's
+            for i from nops(B) by -1 to 0 do
+                if i = 0 then
+                    break:
+                elif B[i][2] = m-1 then
+                    B[i][2]:=0:
+                else
+                    B[i][2]:=B[i][2]+1:
+                    break:
+                fi:
+            od:
+            if i <= 0 then
+                break:
+            fi:
+        od:
+    fi:
+    return ret:
+end:
+
+#Searches for quasiperiodic solutions with period m
+#$GEN("QgSearch")
+QgSearch:=proc({m::integer:=1, Q::symbol:=':-Q', a::symbol:=':-a', b::symbol:=':-b', n::symbol:=':-n', rec:=HOF, ABverbose::boolean:=false, Astart::list:=[], Bverbose::boolean:=false, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, depthlimit::integer:=-1, extras::set:={}, forcesymbols::boolean:=false, generalQ::boolean:=false, ic::integer:=IC_NONE, icconstr::list(set):=[], icsmall::boolean:=true, ineqs::set:={}, largesymbols::boolean:=true, level::integer:=DEF_LEVEL, lexleast::boolean:=false, mindex::integer:=DEF_MINDEX, miniclength::integer:=0, nodeath::boolean:=false, optlengthic::boolean:=true, small::boolean:=true, smartb::extended_numeric:=0, structure::list:=[], symbolics::set:={}, timeout::extended_numeric:=infinity, valcounts::list:=[], verbose::boolean:=false, vfile:=NULL})
+local i, A, ret, vals, S, C, O, addS, struct, ctr, valcts, ok, vci, ct, vs, B, Ic, GetCtr, IsFirstLex, LexOrder, rrec, theIneqs, myic, dun, vali, sl:
+option remember: #This is here so that it doesn't have to repeatedly run for a long time.  This is not a recursive procedure.
+    
+    GetCtr:=proc(theA) local ctrr:
+        ctrr:=[seq(ListTools[Search](theA[i], vals[i]), i=1..m)]:
+        if ListTools[Search](0, ctrr) <> 0 then
+            #Not possible, due to structural violations
+            return NULL:
+        fi:
+        return ctrr:
+    end:
+    
+    LexOrder:=proc(L1, L2) local j:
+        for j from 1 to nops(L1) do
+            if L1[j] < L2[j] then
+                return -1:
+            elif L1[j] > L2[j] then
+                return 1:
+            fi:
+        od:
+        return 0:
+    end:
+    
+    IsFirstLex:=proc(theA) local j, L:
+        for j from 1 to nops(theA)-1 do
+            L:=ListTools[Rotate](theA, j):
+            if LexOrder(L, theA) < 0 and GetCtr(L) <> NULL then
+                return false:
+            fi:
+        od:
+        return true:
+    end:
+    
+    #Compile the recurrence
+    rrec:=CompileRec(rec):
+    
+    ret:={}:
+    myic:=ic:
+    if myic = IC_DEFAULT then
+        myic:=IC_NONE:
+    fi:
+    
+    #Extract structure
+    struct:=ExtractStructure(m, structure):
+    
+    #Q(m*n+i)=a[i]*n+b[i]
+    #Need to try all 2^m vectors of length m with entries in {0, m}
+    #Need to try all remainders mod m for b's that appear with n's
+    
+    #What values is A allowed to take?
+    #vals:=Array([[]$m]):
+    vals:=[]:
+    for i from 1 to m do
+        vali:=[]:
+        if StructureSatisfiable(m, 0, struct[i]) then
+            vali:=[op(vali), 0]:
+        fi:
+        if StructureSatisfiable(m, m, struct[i]) then
+            vali:=[op(vali), m]:
+        fi:
+        if StructureSatisfiable(m, infinity, struct[i]) then
+            vali:=[op(vali), infinity]:
+        fi:
+        if nops(vali) = 0 then
+            #No possibilities exist
+            return {}:
+        fi:
+        vals:=[op(vals), vali]:
+    od:
+    
+    #Set up value counts
+    valcts:=table():
+    for i from 1 to nops(valcounts) do
+        if nops(valcounts[i]) > 2 then
+            valcts[valcounts[i][1]]:=valcounts[i][2..3]:
+        else
+            valcts[valcounts[i][1]]:=[valcounts[i][2]$2]:
+        fi:
+    od:
+    vci:=indset(valcts):
+    
+    ctr:=Array([1$m]):
+    if Astart <> [] then
+        ctr:=GetCtr(Astart):
+        if ctr = NULL then
+            #No possibilities exist, due to structural violations
+            return {}:
+        fi:
+        ctr:=Array(ctr):
+    fi:
+    #Try all the a possibilities
+    while true do
+        A:=[seq(vals[i][ctr[i]], i=1..m)]:
+        ok:=(lexleast implies IsFirstLex(A)):
+        #Check if value count constraint violated
+        for i in vci do
+            ct:=ListTools[Occurrences](i, A):
+            if ct < valcts[i][1] or ct > valcts[i][2] then
+                ok:=false:
+                break:
+            fi:
+        od:
+        if ok then
+            if verbose then
+                printf("Now testing A=%a\n", A):
+            fi:
+            #$GEN("QgSearch"; "QgSearchA"; {"rec"="rrec", "ic"="myic", "verbose"="Bverbose", "A"="A"}; "            addS:="; {"mods"})
+            addS:=QgSearchA(':-m'=m, ':-Q'=Q, ':-a'=a, ':-b'=b, ':-n'=n, ':-rec'=rrec, ':-A'=A, ':-ABverbose'=ABverbose, ':-defvalue'=defvalue, ':-defvar'=defvar, ':-depthlimit'=depthlimit, ':-extras'=extras, ':-forcesymbols'=forcesymbols, ':-generalQ'=generalQ, ':-ic'=myic, ':-icconstr'=icconstr, ':-icsmall'=icsmall, ':-ineqs'=ineqs, ':-largesymbols'=largesymbols, ':-level'=level, ':-mindex'=mindex, ':-miniclength'=miniclength, ':-nodeath'=nodeath, ':-optlengthic'=optlengthic, ':-small'=small, ':-smartb'=smartb, ':-structure'=structure, ':-symbolics'=symbolics, ':-timeout'=timeout, ':-verbose'=Bverbose):
+            ret:=ret union addS:
+            if verbose then
+                printf("Found %d solutions, %d so far\n", nops(addS), nops(ret)):
+            fi:
+            if vfile <> NULL then
+                #fprintf(vfile, "%a\n", addS):
+                for sl in addS do
+                    fprintf(vfile, "%a\n", op(op(sl))):
+                od:
+            fi:
+        fi:
+        
+        #Increment the counter
+        for i from m by -1 to 1 do
+            if ctr[i] = nops(vals[i]) then
+                ctr[i]:=1:
+            else
+                ctr[i]:=ctr[i]+1:
+                break:
+            fi:
+        od:
+        
+        #Check for termination
+        dun:=true:
+        for i from 1 to m do
+            if ctr[i] <> 1 then
+                dun:=false:
+                break:
+            fi:
+        od:
+        if dun then
+            break:
+        fi:
+    od:
+    return ret:
+end:
+
+#Make recurrence system be in format it can be used nicely
+NormalizeRecurrenceSystem:=proc(recsys) local ret, i, sb, ind:
+    ret:=[]:
+    for i from 1 to nops(recsys) do
+        sb:={}:
+        for ind in indets(recsys[i]) do
+            if type(ind, expr_type) then
+                if type(op(0, ind), expr_type) then
+                    sb:=sb union {ind = op(0, op(0, ind))[op(1, op(0, ind)), op(1, ind)]}:
+                fi:
+            fi:
+        od:
+        ret:=[op(ret), subs(sb, recsys[i])]:
+    od:
+    return ret:
+end:
+
+#Get the period of a list
+GetPeriod:=proc(A) local i:
+    for i from 1 to floor(nops(A)/2) do
+        if [op(i+1..-1, A), op(1..i, A)] = A then
+            return i:
+        fi:
+    od:
+    return nops(A):
+end:
+
+##########################################################
+##PUBLIC PROCEDURES
+
+#Compile recurrence
+register(__doc, "CompileRec(rec, {Q, n})",
+    Input::"rec: an expression in terms of Q and n for Q(n). ",
+    "Either parentheses or square brackets can be used for grouping.",
+    Input::"Q (optional): the symbol used to denote the recursive ",
+    "function (default is an automatic search for a global symbol)",
+    Input::"n (optional): the symbol used to denote the index of ",
+    "the recurrence relation (default is an automatic search for ",
+    "a global symbol)",
+    Output::"A table holding the relevant data about the ",
+    "indicated recurrence.  The table contains the following fields:\n",
+    "    t_bracket: the bracket symbol, either [ or (\n",
+    "    t_n: the n symbol\n",
+    "    t_Q: the Q symbol\n",
+    "    t_rec: the recurrence expression, written with square brackets",
+    Note::"Calls to Q can be indicated using either parentheses ",
+    "or square brackets. Expressions derived from this recurrence ",
+    "will follow whichever convention was used when calling this ",
+    "procedure.",
+    Note::"rec can include symbols besides the function and index ",
+    "names. If other symbols are present, arguments Q and n must ",
+    "be passed explicitly.",
+    Example::["Q[n-Q[n-1]]+Q[n-Q[n-2]]", "compiles Hofstadter's Q-recurrence"],
+    Example::["Z[h-Z[h-x]]+Z[h-Z[h-y]], Q=Z, n=h", "compiles a generalization of Hofstadter's recurrence (with Q named Z and n named h) with free parameters x and y. If they are specialized to 1 and 2, then this is Hofstadter's recurrence."]
+):
+CompileRec:=proc(rec, {Q:=NULL, n:=NULL})
+local ret, Qs, ns, rc, bk, FindQn, Bracketize:
+description "Compile a recurrence":
+    #If already compiled, do nothing
+    if type(rec, table) then
+        ret:=op(rec):
+        if type(ret, table) then
+            #return op(rec):
+            return ret:
+        else
+            return rec:
+        fi:
+    fi:
+    if Q <> NULL and not(type(Q, symbol)) then
+        error("Q must be a symbol"):
+    fi:
+    if n <> NULL and not(type(n, symbol)) then
+        error("n must be a symbol"):
+    fi:
+    Qs:=Q:
+    ns:=n:
+    if Qs = NULL or ns = NULL then
+        #Find the Q and n
+        FindQn:=proc(expr, {Qsm:=NULL}) local ind:
+            if Qs = NULL then
+                Qs:=Qsm:
+            fi:
+            if ns = NULL then
+                for ind in indets(expr) do
+                    if type(ind, symbol) then
+                        ns:=ind:
+                    fi:
+                od:
+            fi:
+            return expr:
+        end:
+        ProcessQg(rec, false, FindQn):
+    fi:
+    
+    #Procedure for converting entire recurrence to brackets
+    #and keeping track of what kinds of brackets appear.
+    #If both appear, use parentheses
+    bk:="[":
+    Bracketize:=proc(expr, {thetype:=function})
+        if thetype = function then
+            bk:="(":
+        fi:
+        return Qs[expr]:
+    end:
+    rc:=ProcessQg(rec, false, Bracketize):
+    
+    ret:=table():
+    ret[t_Q]:=Qs:
+    ret[t_n]:=ns:
+    ret[t_rec]:=rc:
+    ret[t_bracket]:=bk:
+    return op(ret):
+end:
+
+#Get the recurrence
+register(__doc, "GetRec({Q, n, refs, coefs, shift, ncoefs, qcoefs, addcon})",
+    Input::"rec: an expression in terms of Q and n for Q(n)",
+    Input::"Q (optional): the symbol used to denote the recursive ",
+    "function (default is an automatic search for a global symbol)",
+    Input::"n (optional): the symbol used to denote the index of ",
+    "the recurrence relation (default is an automatic search for ",
+    "a global symbol)",
+    Input::"refs (optional): A list, see below (default is [1,2])",
+    Input::"coefs (optional): A list, see below (default is [1,1])",
+    Input::"shift (optional): A list, see below (default is [0,0])",
+    Input::"ncoefs (optional): A list, see below (default is [1,1])",
+    Input::"qcoefs (optional): A list, see below (default is [1,1])",
+    Input::"addcon (optional): An integer, see below (default is 0)",
+    Output::"A table, in the format returned by CompileRec, representing ",
+    "the recurrence ",
+    "Q(n)=addcon + add(coefs[i]*Q(ncoefs[i]*n-shift[i]-qcoefs[i]*Q(n-refs[i])), i=1..nops(refs))",
+    Note::"If the lengths of the coefs, shift, ncoefs, qcoefs, ",
+    "and/or addcon lists do not match that of the refs list, ",
+    "they are either truncated or padded with default values.",
+    Example::["", "returns Hofstadter's recurrence"],
+    Example::["refs=[1,1], ncoefs=[0,1], qcoefs=[-1,1]", "returns the Hofstadter-Conway recurrence Q(n)=Q(Q(n-1))+Q(n-Q(n-1))."],
+    Example::["shift=[0,1]", "returns the Conolly recurrence Q(n)=Q(n-Q(n-1))+Q(n-1-Q(n-2))."]
+):
+GetRec:=proc({Q::symbol:=':-Q', n::symbol:=':-n', refs::list:=DEF_S, coefs::list:=DEF_C, shift::list:=DEF_O, ncoefs::list:=DEF_NC, qcoefs::list:=DEF_QC, addcon::integer:=DEF_K})
+local S, C, O, K, NC, QC, i:
+description "Build a recurrence using the most common elements":
+    K:=addcon:
+    S, C, O:=GetSCO(refs, coefs, shift):
+    if nops(ncoefs) < nops(S) then
+        NC:=[op(ncoefs), 1$(nops(S)-nops(ncoefs))]:
+    elif nops(ncoefs) > nops(S) then
+        NC:=ncoefs[1..nops(S)]:
+    else
+        NC:=ncoefs:
+    fi:
+    if nops(qcoefs) < nops(S) then
+        QC:=[op(qcoefs), 1$(nops(S)-nops(qcoefs))]:
+    elif nops(qcoefs) > nops(S) then
+        QC:=qcoefs[1..nops(S)]:
+    else
+        QC:=qcoefs:
+    fi:
+    return CompileRec(K+add(C[i]*Q[NC[i]*n-O[i]-QC[i]*Q[n-S[i]]], i=1..nops(S)), ':-Q'=Q, ':-n'=n):
+end:
+
+#Set bracket in a recurrence
+register(__doc, "SetRecBracket(rec, bk)",
+    Input::"rec: a recurrence obtained from GetRec or CompileRec",
+    Input::"bk: either \"(\" or \"[\"",
+    Output::"The same recurrence where the symbol used to ",
+    "indicate calls to Q is bk"
+):
+SetRecBracket:=proc(rec, bk) local ret:
+description "Set recurrence bracket":
+    ret:=table(rec):
+    ret[t_bracket]:=bk:
+    return op(ret):
+end:
+
+#Set bracket in a solution
+register(__doc, "SetBracket(vsol, bk)",
+    Input::"vsol: a solution table returned by FindQgSolutions",
+    Input::"bk: either \"(\" or \"[\"",
+    Output::"The same solution table where the symbol used to ",
+    "indicate calls to Q is bk"
+):
+SetBracket:=proc(vsol, bk) local ret:
+description "Set bracket in a solution":
+    ret:=InstillProperBracketsTable(vsol, vsol[t_Q], bk, {t_rec}):
+    ret[t_rec]:=SetRecBracket(ret[t_rec], bk):
+    return op(ret):
+end:
+
+#Convert a Q-system to a better recurrence system
+register(__doc, "GetRecurrenceSystem(Q, a, n, Qt, Bmods)",
+    Input::"Q: the symbol used to denote the function in Qt",
+    Input::"a: the symbol used to denote the recursive ",
+    "functions in the returned system",
+    Input::"n: the symbol used to denote the indices in the ",
+    "returned system",
+    Input::"Qt: an expression returned by GetQGuessExpr",
+    Input::"Bmods: a list or set of expressions of the form ",
+    "b[i] = h[i] where each h[i] is an integer from 0 to ",
+    "nops(Qt)-1 and i ranges over a subset of ",
+    "{0, 1,..., nops(Qt)-1}",
+    Output::"A system of recurrences whose solution gives an ",
+    "interleaving solution to the recurrence Q represents",
+    Note::"The unknowns in the system will be ",
+    "a[1, n], a[2, n],..., a[nops(Qt)-1, n].",
+    Note::"Not every unknown will necessarily appear explicitly ",
+    "in the system, but the format of the return value is that ",
+    "a[i, n] equals the ith entry in the returned list.",
+    Example::["Q, a, n, [Q[3*n-b[2]] + Q[3*n-b[1]], b[1], b[2]], {b[1]=0, b[2]=0}", "returns [a[1, n - 1/3*b[2]] + a[1, n - 1/3*b[1]], b[1], b[2]]. This is the system obtained when studying the Ruskey sequence."]
+):
+GetRecurrenceSystem:=proc(Q, a, n, Qt, Bmods)
+local i, m, ind, recsys, sb, offset, os, om:
+description "Build a system of linear recurrences describing a potential solution family":
+    m:=nops(Qt):
+    recsys:=Array([0$m]):
+    for i from 1 to m do
+        sb:={}:
+        for ind in indets(Qt[i]) do
+            if type(ind, expr_type) and op(0, ind) = Q and coeff(op(1, ind), n, 1) > 0 then
+                #Need to change this one
+                offset:=coeff(op(1, ind), n, 0):
+                os:=subs(Bmods, offset):
+                om:=os mod m:
+                sb:=sb union {ind = a[om+1, n-(-offset+om)/m]}:
+            fi:
+        od:
+        recsys[i]:=subs(sb, Qt[i]):
+    od:
+    return convert(recsys, list):
+end:
+
+#Get descriptions of everything
+#This is for general recurrences
+register(__doc, "GetDescrs(a, n, recsys, [includesteepness])",
+    Input::"a: the symbol used to denote the unknowns in the ",
+    "recurrence system",
+    Input::"n: the symbol used to denote the indices in the ",
+    "recurrence system",
+    Input::"recsys: a system of recurrences in the format ",
+    "returned by GetRecurrenceSystem",
+    Input::"includesteepness (optional): if true, the return ",
+    "value will also include constraints that must be ",
+    "satisfied if steep linear functions are to be steep ",
+    " (default is false)",
+    Output::"A list of length nops(recsys) whose ith entry is ",
+    "the degree of growth of recsys[i] (or infinity if recsys[i] ",
+    "is superpolynomial).\n",
+    "If includesteepness was true, a second list is also returned. ",
+    "Each entry in this list is 0, unless recsys[i] has a steep ",
+    "linear solution, in which case the ith entry gives a ",
+    "constraint that must be satisfied if this steepness is to ",
+    "hold.",
+    Example::["a, n, [a[1, n - 1/3*b[2]] + a[1, n - 1/3*b[1]], b[1], b[2]]", "returns [infinity, 0, 0]. This is the system obtained when studying the Ruskey sequence."],
+    Example::["a, n, [a[1, n - 1/3*b[1]] + x], true", "returns [1], [1/3 b[1] <= x - 1]."],
+    Example::["a, n, [a[1, n-1]+a[2, n-1], a[2, n-1]+3, 2*a[3, n-2], a[5, n-1]+a[5,n-2], a[4, n-1], a[6, n-1]+a[7, n-3], a[6, n-1], a[9, n-1]+n, a[8, n-1]+a[11, n-1], a[3, n-1], 7*n+5, a[14, n-1]+a[8, n-1], a[12, n-1]+a[9, n-1], a[13, n-1]+2, n]", "returns [2, 1, infinity, infinity, infinity, infinity, infinity, 2, 2, infinity, 1, 3, 3, 3, 1]"]
+):
+#Example: GetDescrs(a, n, [a[1, n-1]+a[2, n-1], a[2, n-1]+3, 2*a[3, n-2], a[5, n-1]+a[5,n-2], a[4, n-1], a[6, n-1]+a[7, n-3], a[6, n-1], a[9, n-1]+n, a[8, n-1]+a[11, n-1], a[3, n-1], 7*n+5, a[14, n-1]+a[8, n-1], a[12, n-1]+a[9, n-1], a[13, n-1]+2, n]);
+GetDescrs:=proc(a::symbol, n::symbol, recsys::list(algebraic), includesteepness::boolean:=false)
+local m, i, j, V, E, F, d, ind, expr, w, WeightFromTo, E2, Eqcs, rels, Eins, FindEqClass, ts, dt, Ceqcs, nrecsys, steepness, backsteps, tmp, S, consts:
+description "Determine growth rates of pieces of a system of linear recurrences":
+    ##Put recurrence system into normal form
+    #e.g. a(1)(n-1) should become a[1, n-1]
+    nrecsys:=NormalizeRecurrenceSystem(recsys):
+    ##Weighted graph
+    ##Degrees of polynomials
+    m:=nops(nrecsys):
+    V:=[seq(i, i=1..m)]:
+    #Edges:weights
+    E:=table():
+    ##Departure table
+    F:=table():
+    #Back steps
+    backsteps:=table():
+    #Constant terms
+    consts:=table():
+    #Degrees
+    d:=Array([-infinity$m]):
+    for i from 1 to m do
+        expr:=nrecsys[i]:
+        F[i]:={}:
+        for ind in indets(nrecsys[i]) do
+            if type(ind, expr_type) and op(0, ind) = a then
+                w:=coeff(expr, ind, 1):
+                j:=op(1, ind):
+                if type(E[[i,j]], integer) then
+                    E[[i,j]]:=E[[i,j]] + w:
+                else
+                    E[[i,j]]:=w:
+                    F[i]:=F[i] union {j}:
+                    backsteps[[i,j]]:=-coeff(op(2, ind), n, 0):
+                fi:
+                expr:=expr - w*ind:
+            fi:
+        od:
+        d[i]:=degree(expr, n):
+        consts[i]:=coeff(expr, n, 0):
+    od:
+    ##Make infinities
+    WeightFromTo:=proc(v, w, forbs:={}) local i, ret:
+        ret:=0:
+        for i in F[v] do
+            if not([v, i] in forbs) then
+                if i = w then
+                    ret:=ret + E[[v, w]]:
+                else
+                    ret:=ret + WeightFromTo(i, w, forbs union {[v, i]})*E[[v, i]]:
+                fi:
+            fi:
+        od:
+        return ret:
+    end:
+    for i from 1 to m do
+        if WeightFromTo(i, i) > 1 then
+            d[i]:=infinity:
+        fi:
+    od:
+    ##Delete outgoing edges from infinity vertices
+    E2:={}:
+    for i in indset(E) do
+        if d[i[1]] < infinity then
+            E2:=E2 union {i}:
+        fi:
+    od:
+    ##Equivalence relation
+    #Eq classes
+    Eqcs:=table():
+    #d for eq classes
+    dt:=table():
+    #Which ones are cycles?
+    Ceqcs:={}:
+    Eins:={}:
+    #Relations between equivalent classes
+    rels:={}:
+    #Steepness thing, if we care
+    steepness:=Array([0$m]):
+    FindEqClass:=proc(v, L:=[]) local i, j, idx, stp, csum:
+        if d[v] < infinity then
+            for i in F[v] do
+                idx:=ListTools[Search](i, L):
+                if idx <> 0 then
+                    #Found a cycle!
+                    stp:=0:
+                    csum:=0:
+                    S:={op(idx.., L)}:
+                    for j from idx to nops(L) do
+                        Eqcs[L[j]]:=S:
+                        stp:=stp + backsteps[[L[j], L[((j-idx+1) mod (nops(L)-idx+1))+idx]]]:
+                        csum:=csum + consts[L[j]]:
+                    od:
+                    for j from idx to nops(L) do
+                        steepness[L[j]]:=loosen(csum > m*stp):
+                    od:
+                    Eins:=Eins union {op(idx.., L)}:
+                    dt[S]:=max(seq(d[L[j]], j=idx..nops(L))):
+                    Ceqcs:=Ceqcs union {S}:
+                    #This is here to ensure that all classes
+                    #appear in our topological sort
+                    rels:=rels union {[S, tmp]}:
+                else
+                    FindEqClass(i, [op(L), i]):
+                fi:
+            od:
+        fi:
+        if not(v in Eins) then
+            Eqcs[v]:={v}:
+            Eins:=Eins union {v}:
+            dt[{v}]:=d[v]:
+            rels:=rels union {[{v}, tmp]}:
+        fi:
+    end:
+    for i from 1 to m do
+        if not(i in Eins) then
+            FindEqClass(i):
+        fi:
+    od:
+    ##Digraph on equivalence classes
+    for i in E2 do
+        if Eqcs[i[1]] <> Eqcs[i[2]] then
+            rels:=rels union {[Eqcs[i[1]], Eqcs[i[2]]]}:
+        fi:
+    od:
+    ##Topological sort
+    ts:=TopologicalSort(rels):
+    #print(ts):
+    ts:=[op(1..-2, ts)]:
+    ##Process equivalence classes
+    for i from nops(ts) by -1 to 1 do
+        if ts[i] in Ceqcs then
+            dt[ts[i]]:=dt[ts[i]]+1:
+        fi:
+        for j from 1 to i-1 do
+            if [ts[j], ts[i]] in rels then
+                dt[ts[j]]:=max(dt[ts[j]], dt[ts[i]]):
+            fi:
+        od:
+    od:
+    ##Complete
+    for i in indset(dt) do
+        for j in i do
+            d[j]:=dt[i]:
+        od:
+    od:
+    d:=convert(d, list):
+    if includesteepness then
+        steepness:=convert(steepness, list):
+        return d, steepness:
+    else
+        return d:
+    fi:
+end:
+
+#Get descriptions of everything
+register(__doc, "GetGrowthRates(A, {Q, b, n, rec, mods, mindex, defvalue, defvar})",
+    A_input, Q_input, b_input, n_input, rec_input, mods_input,
+    mindex_input, defvalue_input, defvar_input,
+    Output::"A list of length m whose ith entry is ",
+    "the degree of growth of Q(m*n+i) (or infinity if Q(m*n+i) ",
+    "is superpolynomial).",
+    Note::"This procedure does not check that the parameters ",
+    "are consistent. The output is only meaningful if they are.",
+    Example::["[3,0,3], mods={b[1]=0}", "returns [1, 0, 1]. This is the system obtained when studying the Golomb sequence."],
+    Example::["[infinity,0,0], mods={b[1]=0, b[2]=0}", "returns [infinity, 0, 0]. This is the system obtained when studying the Ruskey sequence."],
+    Example::["[infinity,4,0,0], rec=TRI_HOF, mods={b[2]=0, b[3]=3}", "returns [2, 1, 0, 0]. This is the system obtained when studying sequence A268368."]
+):
+GetGrowthRates:=proc(A::list, {Q::symbol:=':-Q', b::symbol:=':-b', n::symbol:=':-n', rec:=HOF, mods:={}, mindex::integer:=DEF_MINDEX, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR})
+local m, i, rrec, a, Qt, recsys:
+description "Determine growth rates of pieces of a potential solution family":
+    #Compile the recurrence
+    rrec:=CompileRec(rec):
+    m:=nops(A):
+    Qt:=GetQGuessExpr(Q, A, [seq(b[i-1], i=1..m)], n, ':-rec'=rrec, ':-mods'=mods, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar):
+    recsys:=GetRecurrenceSystem(Q, a, n, Qt, mods):
+    return GetDescrs(a, n, recsys):
+end:
+
+#Qg(n, {ic, refs, coefs, shift, addcon}): Hofstadter-like recurrence
+#Q(n)=addcon+add(coefs[i]*Q(n-shift[i]-Q(n-refs[i])), i=1..nops(refs))
+#with initial conditions ic, try:
+##Qg(10, ic:=[1,1], refs:=[1,2], coefs:=[1,1], shift:=[0,0], addcon:=0);
+register(__doc, "Qg(n, {ic, rec, failure, largesymbols, varsub, includeassumptions, assumptions, consistencycheck, reduce, mindex, defvalue, defvar, largestnumber, bigsymbols, failurethreshold})",
+    n_qg_input, ic_qg_input, rec_input, failure_input,
+    largesymbols_qg_input, varsub_input,
+    includeassumptions_input, assumptions_input,
+    consistencycheck_input, reduce_input, mindex_input,
+    defvalue_input, defvar_input, largestnumber_input,
+    bigsymbols_input, failurethreshold_input,
+    Output::"The value of Q(n), with the given initial condition",
+    Note::"For more examples of this procedure, see SeqQg.",
+    Example::["7", "returns 5, because Q(5)=7 for the Hofstadter Q-sequence."],
+    Example::["7, rec=CompileRec(Q[n-Q[n-x]]+Q[n-Q[n-y]], Q=Q, n=n), varsub={x=1, y=2}", "returns 5. This is also the Hofstadter Q-sequence."],
+    Example::["42, ic=[3,6,5,3,6,8]", "returns 2584. This is part of the Ruskey sequence."],
+    Example::["42, ic=[3,6,5,3,6,8], failure=TRUE", "returns FAIL. Ruskey's sequence requires the condition Q(n)=0 for n<=0."],
+    Example::["41, ic=[3,6,Q[2],3], mindex=0, includeassumptions=true", "returns 377*Q[2], {-Q[2] <= -8}. The given initial condition is Q(0) through Q(3)."],
+    Example::["41, ic=[3,6,Q[2],3], mindex=0, largesymbols=false", "returns FAIL."]
+):
+Qg:=proc(n, {ic::list:=[1,1], rec:=HOF, failure::boolean:=false, largesymbols::boolean:=true, varsub::set:={}, includeassumptions::boolean:=false, assumptions::set:={}, consistencycheck::boolean:=true, reduce::boolean:=true, mindex:=DEF_MINDEX, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, largestnumber:=infinity, bigsymbols::list:=[], failurethreshold:=false})
+local pass, i, nn, inds, j, expr, stk, NestEval, rrec, asm, eb, ret, extrasm, typeinteger, typeextint, lessthan, lessthanorequal, ft, eb2, evalbasm:
+option remember:
+description "Generate a term of a nested recurrence":
+    #Dummy evalb thing
+    evalbasm:=proc(expr, asm)
+        return evalb(expr):
+    end:
+    
+    #Generalized integer type checking
+    typeinteger:=proc(val) local c1, c2:
+        if type(val, integer) then
+            #It's an integer
+            return true:
+        elif val in bigsymbols then
+            #It's a big symbol
+            return true:
+        elif type(val, `+`) then
+            #Sum
+            c1:=op(1, val):
+            c2:=val - c1:
+            return evalb(typeinteger(c1) and typeinteger(c2)):
+        elif type(val, `*`) then
+            #Product
+            c1:=op(1, val):
+            c2:=val / c1:
+            return evalb(typeinteger(c1) and typeinteger(c2)):
+        elif type(val, `^`) then
+            #Exponential
+            c1:=op(1, val):
+            c2:=op(2, val):
+            return evalb(typeinteger(c1) and typeinteger(c2)):
+        else
+            #It's not an integer
+            return false:
+        fi:
+    end:
+    
+    typeextint:=proc(val)
+        return evalb(type(val, extended_numeric) or typeinteger(val)):
+    end:
+    
+    #Less than, using bigsymbols
+    lessthan:=proc(a, b, asm:={}) local i, ebf, va, vb, ca, cb:
+        if nops(asm) = 0 then
+            ebf:=evalbasm:
+        else
+            ebf:=evalb2asm:
+        fi:
+        if type(a, extended_numeric) and type(b, extended_numeric) then
+            return ebf(a < b, asm):
+        elif a = infinity or b = -infinity then
+            return ebf(false, asm):
+        elif a = -infinity or b = infinity then
+            return ebf(true, asm):
+        else
+            #Only works for linear combinations of big symbols
+            va:=a:
+            vb:=b:
+            for i from -1 by -1 to -nops(bigsymbols) do
+                ca:=coeff(a, bigsymbols[i], 1):
+                cb:=coeff(b, bigsymbols[i], 1):
+                #print(ca, cb):
+                if evalb2asm(ca < cb, asm) = 1 then
+                    return ebf(true, asm):
+                elif evalb2asm(ca > cb, asm) = 1 then
+                    return ebf(false, asm):
+                fi:
+                va:=va - ca*bigsymbols[i]:
+                vb:=vb - cb*bigsymbols[i]:
+            od:
+            return ebf(va < vb, asm):
+        fi:
+    end:
+    
+    lessthanorequal:=proc(a, b, asm:={})
+        return evalb(a = b or lessthan(a, b, asm))
+    end:
+    
+    #Thing to do each recurse into the expression
+    NestEval:=proc(expr) local tmp:
+        #Did it work?
+        if expr = FAIL then
+            #It didn't work
+            return FAIL:
+        fi:
+        #Is it legal?
+        if (typeinteger(expr) and failure and lessthanorequal(expr, ft)) or (typeinteger(expr) and (not(typeinteger(n)) or lessthanorequal(n, expr))) then
+            #It's illegal
+            return FAIL:
+        else
+            #It's legal, evaluate the expression
+            tmp:=[Qg(expr, pass)]:
+            if nops(tmp) = 2 then
+                asm:=asm union tmp[2]:
+            fi:
+            tmp:=tmp[1]:
+            return tmp:
+        fi:
+    end:
+    
+    #Stuff to pass to future stuff
+    asm:=assumptions:
+    nn:=n:
+    ft:=failurethreshold:
+    if ft = false then
+        ft:=mindex-1:
+    fi:
+    eb:=lessthanorequal(nn, mindex-1, asm):
+    eb2:=lessthanorequal(nn, ft, asm):
+    extrasm:={}:
+    if eb = 1 then
+        #Our assumptions allow us to do stuff well
+        #even without largesymbols
+        nn:=-infinity:
+    elif largesymbols and not(typeextint(nn)) then
+        if eb = -1 then
+            #Symbol can't be large enough
+            return FAIL:
+        fi:
+        if consistencycheck and lessthanorequal(nn, mindex-1) <> true then
+            #Add the assumption
+            extrasm:={nn <= mindex-1}
+        fi:
+        #Make nn good
+        nn:=-infinity:
+    fi:
+    pass:=':-ic'=ic, ':-rec'=rec, ':-failure'=failure, ':-largesymbols'=largesymbols, ':-varsub'=varsub, ':-includeassumptions'=consistencycheck, ':-assumptions'=asm, ':-consistencycheck'=consistencycheck, ':-reduce'=reduce, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar, ':-largestnumber'=largestnumber, ':-bigsymbols'=bigsymbols, ':-failurethreshold'=ft:
+    asm:=asm union extrasm:
+    if typeextint(nn) and lessthan(nn, mindex) then
+        if failure and eb2 = 1 then
+            return FAIL:
+        else
+            ret:=subs(defvar=n, defvalue):
+        fi:
+    elif typeextint(nn) and lessthanorequal(n-mindex+1, nops(ic)) then
+        ret:=ic[n-mindex+1]:
+    else
+        expr:=subs(varsub, subs(rec[t_n] = n, rec[t_rec])):
+        ret:=ProcessQg(expr, rec[t_Q], NestEval):
+    fi:
+    if typeextint(ret) and lessthan(largestnumber, ret) then
+        ret:=infinity:
+    fi:
+    if includeassumptions then
+        if reduce then
+            asm:=ReduceIneqs(asm):
+        fi:
+        ret:=ret, asm:
+    fi:
+    return ret:
+end:
+
+#First N terms of Qg
+register(__doc, "SeqQg(N, {ic, rec, failure, largesymbols, varsub, includeassumptions, assumptions, consistencycheck, reduce, mindex, defvalue, defvar, largestnumber, bigsymbols, failurethreshold})",
+    N_qg_input, ic_qg_input, rec_input, failure_input,
+    largesymbols_qg_input, varsub_input,
+    includeassumptions_input, assumptions_input,
+    consistencycheck_input, reduce_input, mindex_input,
+    defvalue_input, defvar_input, largestnumber_input,
+    bigsymbols_input, failurethreshold_input,
+    Output::"The list of values [Q(mindex), Q(mindex+1),..., Q(mindex+N-1)]",
+    Example::["15", "returns [1, 1, 2, 3, 3, 4, 5, 5, 6, 6, 6, 8, 8, 8, 10]. These are the first 15 terms of the Hofstadter Q-sequence."],
+    Example::["15, ic=[3,6,5,3,6,8]", "returns [3, 6, 5, 3, 6, 8, 3, 6, 13, 3, 6, 21, 3, 6, 34]. These are the first 15 terms of Ruskey's sequence."],
+    Example::["20, ic=[Q[1],1,0,Q[4],4,4,3], rec=Q[n-Q[n-1]]+Q[n-Q[n-2]]+Q[n-Q[n-3]]", "returns [Q[1], 1, 0, Q[4], 4, 4, 3, 4 + 2*Q[4], 8, 4, 3, 12 + 3*Q[4], 12, 4, 3, 24 + 4*Q[4], 16, 4, 3, 40 + 5*Q[4]]. These are the first 20 terms of a generalization of A268368."],
+    Example::["100, ic=[], mindex=N+1, bigsymbols=[N], defvalue=n, defvar=n, failure=true", "returns [3, N + 1, 2 + N, 5, 3 + N, 6, 7, 4 + N, 6 + N, 10, 8, 6 + N, 10 + N, 12, 7 + N, 14, 12 + N, 11, 11 + N, 15 + N, 16, 13, 17, 15, 14 + N, 20, 20, 8 + 2*N]. This is a rigorous proof that, for sufficiently large N, the Hofstadter Q-recurrence with initial condition [1,2,3,...,N] dies after N+33 terms."]
+):
+SeqQg:=proc(N::integer, {ic::list:=[1,1], rec:=HOF, failure::boolean:=false, largesymbols::boolean:=true, varsub::set:={}, includeassumptions::boolean:=false, assumptions::set:={}, consistencycheck::boolean:=true, reduce::boolean:=true, mindex:=DEF_MINDEX, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, largestnumber:=infinity, bigsymbols::list:=[], failurethreshold:=false})
+local L, S, C, O, K, n, lu, lu1, rrec, asm:
+description "Generate N terms of a nested recurrence":
+    #Compile the recurrence
+    rrec:=CompileRec(rec):
+    
+    lu:=[]:
+    asm:=assumptions:
+    for n from 1 to N do
+        lu1:=Qg(n+mindex-1, ':-ic'=ic, ':-rec'=rrec, ':-failure'=failure, ':-largesymbols'=largesymbols, ':-varsub'=varsub, ':-includeassumptions'=includeassumptions, ':-assumptions'=assumptions, ':-consistencycheck'=consistencycheck, reduce=false, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar, ':-largestnumber'=largestnumber, ':-bigsymbols'=bigsymbols, ':-failurethreshold'=failurethreshold):
+        
+        if lu1 = FAIL then
+            break:
+        else
+            if includeassumptions then
+                asm:=asm union lu1[2]:
+                asm:=asm union lu1[2]:
+                lu1:=lu1[1]:
+            fi:
+            lu:=[op(lu), lu1]:
+        fi:
+
+    od:
+    
+    if includeassumptions then
+        if reduce then
+            asm:=ReduceIneqs(asm):
+        fi:
+        lu:=lu, asm:
+    fi:
+    return lu:
+
+end:
+
+#Get the general Q list for the given m
+#Q, a, b, and n are symbols
+register(__doc, "GetQGuessExpr(Q, A, B, n, {rec, mods, preservefirst, inequalities, icconstraints, implicit, nodeath, assumptions, mindex, defvalue, defvar, shallow})",
+    Q_input, A_input, B_input, n_input, rec_input, mods_input,
+    Input::"preservefirst (optional): A boolean. If true, the first-level expressions won't be unpacked further. (default is false)",
+    Input::"inequalities (optional): A boolean. If true, a set of inequalities that are required in order for the unpacking to work is also returned. (default is false)",
+    Input::"icconstraints (optional) A boolean. If true, a list of sets of constraints that are required for an initial condition to work at a certain point (given by n) is also returned. (default is false)",
+    Input::"implicit (optional): A boolean. If true, looking into the future is not forbidden. THIS BEHAVIOR IS NOT SUPPORTED ANYWHERE ELSE, SO USE WITH CAUTION. (default is false)",
+    nodeath_input,
+    Input::"assumptions (optional): A set of assumptions being made a priori (default is {})",
+    mindex_input,
+    defvalue_input,
+    defvar_input,
+    Input::"shallow (optional): A boolean. If true, don't unpack first-level steep linear expressions. (default is false)",
+    Output::"A list of the m unpacked expressions for [Q(m*n), Q(m*n+1),...,Q(m*n+m-1)], along with a possible set of inequalities and a possible list of sets of initial condition constraints.",
+    Example::["Q, [3,0,3], [-2,3,2], n", "returns [Q[1] + 3*n - 5, Q[3] + Q[2], 3*n - 1 + Q[4]]. This unpacking occurs in proving the Golomb sequence."],
+    Example::["Q, [3,0,3], [-2,3,2], n, preservefirst=true", "returns [Q[1] + Q[3*n - 3], Q[3] + Q[2], Q[3*n - 1] + Q[4]]."],
+    Example::["Q, [3,0,3], [b[0],b[1],b[2]], n, mods={b[1]=0}", "returns [Q[3 - b[2]] + 3*n - b[1] + b[0], Q[1 - b[0]] + Q[4 - b[2]], 3*n - b[1] + b[2] + Q[2 - b[0]]]. This unpacking occurs in proving the Golomb family of sequences."],
+    Example::["Q, [3,0,3], [b[0],b[1],b[2]], n, mods={b[1]=0}, inequalities=true, icconstraints=true", "returns [Q[3 - b[2]] + 3*n - b[1] + b[0], Q[1 - b[0]] + Q[4 - b[2]], 3*n - b[1] + b[2] + Q[2 - b[0]]], {1 <= b[1]}, [{Q[3*n - 2] = b[1], Q[3*n - 1] = 3*n - 3 + b[2], Q[3*n - b[1]] = 3*n - b[1] + b[0]}, {Q[3*n] = 3*n + b[0], Q[3*n - 1] = 3*n - 3 + b[2]}, {Q[3*n] = 3*n + b[0], Q[3*n + 1] = b[1], Q[3*n + 2 - b[1]] = 3*n - b[1] + b[2]}]."]
+):
+GetQGuessExpr:=proc(Q::symbol, A::list, B::list, n::symbol, {rec:=HOF, mods::set:={}, preservefirst::boolean:=false, inequalities:=false, icconstraints:=false, implicit:=false, nodeath:=false, assumptions:={}, mindex::integer:=DEF_MINDEX, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, shallow::boolean:=false})
+local ret, i, ExprModulator, E, ind, ineqs, idx, rrec, svineqs, mvineqs, icconstr, aasm, m:
+option remember:
+description "Unpack a nested recurrence":
+    #Thing to do each recurse into the expression
+    ExprModulator:=proc(expr, {depth:=0})
+    local c1, c0, c0m, GetEs, pim, Ev:   
+        #Replace E things by Q things
+        GetEs:=proc()
+        local ret, inds, ind:
+            ret:=expr:
+            inds:=indets(c0):
+            for ind in inds do
+                if op(0, ind) = E then
+                    ret:=subs(E[op(1, ind)] = Q[op(1, ind)], ret):
+                fi:
+            od:
+            return ret:
+        end:
+        
+        if expr = FAIL then
+            return FAIL:
+        fi:
+        
+        #Coefficient on n
+        c1:=coeff(expr, n, 1):
+        #Constant term
+        c0:=coeff(expr, n, 0):
+        #E values (as Qs)
+        Ev:=GetEs():
+        if (type(c1, extended_numeric) and c1 < 0) or Ev <> expr or (is(c1<0) assuming aasm) then
+            #It's eventually negative
+            if nodeath then
+                return FAIL:
+            else
+                if icconstraints then
+                    #Add a constraint
+                    icconstr[-1]:=icconstr[-1] union {Ev <= mindex-1}:
+                fi:
+                return subs(defvar=Ev, defvalue):
+            fi:
+        elif not(implicit) and ((type(c1, extended_numeric) and c1 > 0) or (is(c1>0) assuming aasm)) and c1 <> m then
+            #We are looking to the future
+            return FAIL:
+        elif depth = 0 and preservefirst then
+            #We are preserving this guy
+            return Q[expr]:
+        else
+            pim:=PlugInQMod(m, Q, A, B, n, expr, mods, ':-E'=E, ':-c0'=c0, ':-c1'=c1, ':-inequalities'=inequalities, ':-icconstraints'=icconstraints, ':-implicit'=implicit, ':-nodeath'=nodeath, ':-idx'=idx, ':-aasm'=aasm, ':-shallow'=shallow, ':-mindex'=mindex):
+            if inequalities then
+                ineqs:=ineqs union pim[2]:
+                if icconstraints then
+                    icconstr[-1]:=icconstr[-1] union pim[3]:
+                fi:
+                pim:=pim[1]:
+            elif icconstraints then
+                icconstr[-1]:=icconstr[-1] union pim[2]:
+                pim:=pim[1]:
+            fi:
+            return pim:
+        fi:
+    end:
+    
+    #Compile the recurrence
+    rrec:=CompileRec(rec):
+    
+    #Get m
+    m:=nops(A):
+    
+    #List to return
+    ret:=Array([]):
+    #Inequalities to return
+    ineqs:={}:
+    #Initial condition constraints to return
+    icconstr:=Array([]):
+    ##A assumptions
+    aasm:=op(assumptions):
+    #There are m cases
+    for i from 0 to m-1 do
+        idx:=i:
+        #Do the current case
+        ret:=Array([op(convert(ret, list)), subs({rrec[t_Q] = Q, rrec[t_n] = m*n+i}, rrec[t_rec])]):
+        icconstr:=Array([op(convert(icconstr, list)), {}]):
+        #Replace with inducted stuff
+        ret[-1]:=ProcessQg(ret[-1], Q, ExprModulator):
+        #Short-circuit failures
+        if ret[-1] = FAIL then
+            if inequalities then
+                if icconstraints then
+                    return FAIL, FAIL, FAIL:
+                else
+                    return FAIL, FAIL:
+                fi:
+            else
+                if icconstraints then
+                    return FAIL, FAIL:
+                else
+                    return FAIL:
+                fi:
+            fi:
+        fi:
+        #Get rid of E's
+        for ind in indets(ret[-1]) do
+            if op(0, ind) = E then
+                 ret[-1]:=subs({E[op(ind)]=Q[op(ind)]}, ret[-1]):
+            fi:
+        od:
+    od:
+    ret:=convert(ret, list):
+    icconstr:=convert(icconstr, list):
+    if inequalities then
+        ineqs:={seq(loosen(i), i in ineqs)}:
+        #Check feasibility
+        ineqs:=semisolve(ineqs):
+        if ineqs = NULL then
+            ineqs:=FAIL:
+        fi:
+        if icconstraints then
+            return ret, ineqs, icconstr:
+        else
+            return ret, ineqs:
+        fi:
+    elif icconstraints then
+        return ret, icconstr:
+    else
+        return ret:
+    fi:
+end:
+
+#FindQgSolutions
+register(__doc, "FindQgSolutions([A, B], {m, Q, a, b, n, rec, ABverbose, Astart, Bverbose, defvalue, defvar, depthlimit, extras, forcesymbols, generalQ, ic, icconstr, icsmall, ineqs, largesymbols, level, lexleast, mindex, miniclength, mods, nodeath, optlengthic, small, smartb, structure, symbolics, timeout, valcounts, verbose})",
+    Input::"A (optional): three choices:\n",
+    "    1. NULL (equivalent to passing 1) (this is default but rarely useful)\n",
+    "    2. An integer (allows passing a value for m without using m=)\n",
+    "    3. A list of length m such that Q(m*n+i)=",
+"A[i-1]*n+b[i] for some b[i], or A[i-1]=infinity if Q(m*n+i) ",
+"grows faster than m*n. (If Q(m*n+i) is steep linear, A[i-1] ",
+"can be a constant or infinity.)",
+    Input::"B (optional): four choices:\n",
+    "    1. NULL (this is default)\n",
+    "    2. a list of length m such that Q(m*n+i)=",
+"A[i-1]*n+B[i-1]. If Q(m*n+i) is steep, B[i-1] can be arbitrary, though it is typically the symbol b[i].\n",
+    "    3. a list of lists of length 2, where the first entry of each such list is either an integer i or a symbol b[i] and the second entry is the requested congruence class of b[i] mod m\n",
+    "    4. a set of congruence ",
+    "constraints mod m to enforce, in the form of equalities ",
+    "(e.g. b[1]=5 means b[1] congruent to 5 mod m)",
+    Input::"m (optional): an integer denoting the length of the ",
+    "A list to consider. This parameter can also be -1, in which ",
+    "case the value of m is determined automatically. (Default is -1)",
+    Q_input, a_input, b_input, n_input, rec_input,
+    Input::"ABverbose (optional): If true, the procedure will ",
+    "print various informational messages as it computes with ",
+    "an A and B value (default is false)",
+    Input::"Astart (optional): If A was not a list, a list of length ",
+    "m that specifies the first A value to consider (default is [], which means start from [0$m])",
+    Input::"Bverbose (optional): If true, the procedure will ",
+    "print various informational messages as it interates through ",
+    "B values (default is false)",
+    defvalue_input, defvar_input,
+    Input::"depthlimit (optional): the depthlimit parameter for ",
+    "Optimization[LPSolve], which is used to solve integer programs ",
+    "at the innermost level (default is -1)",
+    Input::"extras (optional): a set of extra equality constraints to enforce (default is {})",
+    Input::"forcesymbols (optional): If true, any free Q values ",
+    "in the sample solution are forced to be symbolic in the initial ",
+    "condition (default is false)",
+    Input::"generalQ (optional): If true, as many Q values ",
+    "in the sample solution are forced to be symbolic in the initial ",
+    "condition (default is false)",
+    Input::"ic (optional): four choices:\n",
+    "    1. IC_DEFAULT (the default option): Find sample initial conditions only if A and B were both passed as lists\n",
+    "    2. false or IC_NONE: Do not find sample initial conditions\n",
+    "    3. true or IC_FULL: Always find sample initial conditions\n",
+    "    4. IC_LAZY: Find sample initial conditions, but don't use any symbols in them and don't prove that they're correct (this may be faster)",
+    Input::"icconstr (optional): Either [] (default, indicating ",
+    "nothing) or a list of length m of sets of additional constraints ",
+    "involving n to be enforced on initial conditions",
+    Input::"icsmall (optional): If true, the initial conditions should ",
+    "be as short as possible (default is true)",
+    Input::"ineqs (optional): a set of extra inequality constraints to enforce (default is {})",
+    largesymbols_input,
+    "leads to evaluation at a point less than mindex. If false, ",
+    "any symbol appearing in an initial condition is never referenced. (Default is true)",
+    Input::"level (optional): An integer from 0 to 6 describing how ",
+    "in-depth the verification process should be for a solution. ",
+    "Only level 6 provides a proof and a sample solution, but ",
+    "level 2 seems to usually avoid false-positives and is much faster, ",
+    "albeit without returning a sample solution (default is 6)",
+    Input::"lexleast (optional): If true and a specific list A ",
+    "was not given, only consider lists A that are lexicographically ",
+    "least among all cyclic permutations of themselves. This is ",
+    "useful, since many Hofstadter-like recurrences are shift-invariant. (Default is false)",
+    mindex_input,
+    miniclength_input,
+    Input::"mods (optional): a set of extra congruence ",
+    "constraints mod m to enforce, in the form of equalities ",
+    "(e.g. b[1]=5 means b[1] congruent to 5 mod m) (default is {})",
+    nodeath_input,
+    optlengthic_input,
+    Input::"small (optional): If true, sample values are reduced ",
+    "to be close to zero after they are found. They will not ",
+    "necessarily be as close to zero as possible; this uses a ",
+    "heuristic approximation algorithm to a hard problem.",
+    Input::"smartb (optional): If A contains at least smartb ",
+    "zeroes, then a smart search for potentially feasible B values ",
+    "will be used. Otherwise, an exhaustive search will be used. ",
+    "The exhaustive search may sometimes be shorter for A's with ",
+    "few zeroes. (Default is 0)",
+    Input::"structure (optional): A list of structural ",
+    "restrictions (default []). Lists of length less than m are ",
+    "padded with ANY; lists of length more than m are truncated. ",
+    "Basic entries for structure[i+1] (alphabetical):\n",
+    "    ANY: no restrictions on Q(m*n+i)\n",
+    "    CONSTANT: Q(m*n+i) should be constant\n",
+    "    CUBIC: Q(m*n+i) should grow cubically\n",
+    "    DEGREE(n1, n2): Q(m*n+i) should grow polynomially with degree between n1 and n2 inclusive (infinity means exponential)\n",
+    "    EXPONENTIAL: Q(m*n+i) should grow exponentially\n",
+    "    LINEAR: Q(m*n+i) should grow linearly\n",
+    "    POLYNOMIAL: Q(m*n+i) should grow polynomially\n",
+    "    QUADRATIC: Q(m*n+i) should grow quadratically\n",
+    "    QUARTIC: Q(m*n+i) should grow quartically\n",
+    "    QUASILINEAR: Q(m*n+i) be constant or linear\n",
+    "    QUINTIC: Q(m*n+i) should grow quintically\n",
+    "    SLOPE(m1, m2): Q(m*n+i) be linear with slope between m1 and m2 inclusive\n",
+    "    STANDARD: Q(m*n+i) should be constant or linear with slope 1\n",
+    "    STANDARD_LINEAR: Q(m*n+i) should have slope 1\n",
+    "    STEEP: Q(m*n+i) should grow faster than slope 1\n",
+    "    STEEP_LINEAR: Q(m*n+i) should be linear with slope greater than 1\n",
+    "    STEEP_POLYNOMIAL: Q(m*n+i) should grow faster than linearly yet still grow polynomially\n",
+    "    SUPERLINEAR: Q(m*n+i) should grow faster than linearly\n",
+    "These entries can be combined with and, or, and not.",
+    Input::"symbolics (optional): A set of symbols that must ",
+    "remain symbolic (default is {})",
+    timeout_input,
+    Input::"valcounts (optional): A list of lists of length 3. ",
+    "If [x, y, z] appears in valcounts, then, if no specific A list ",
+    "was passed, only A lists where x appears at least y and at ",
+    "most z times will be considered. x should be 0, m, or infinity. ",
+    "(Default is [])",
+    Input::"verbose (optional): If true, the procedure will ",
+    "print various informational messages at its outermost ",
+    "search level (default is false)",
+    Input::"vfile (optional): File descriptor to write ",
+    "intermediate steps to (default is NULL)",
+    Output::"A table, or a set of tables, where each table ",
+    "contains the following information about a single solution family ",
+    "with the following entries:\n",
+    "    t_a: the a symbol\n",
+    "    t_avals: the list A\n",
+    "    t_b: the b symbol\n",
+    "    t_bmods: a set of congruence constraints mod m that must be satisfied by a solution (e.g. b[1]=3 means b[1] congruent to 3 mod m)\n",
+    "    t_defvalue: the expression for Q(n) when n < mindex\n",
+    "    t_defvar: the variable (maybe) appearing in defvalue\n",
+    "    t_descr: a list of integers, where the (i+1)st entry is the degree of growth of Q(m*n+i) (infinity means exponential)\n",
+    "    t_eqc: a set of equality costraints that must be satisfied by a solution\n",
+    "    t_forms: a list of formulas, where the (i+1)st entry describes Q(m*n+i)\n",
+    "    t_ic: a sample initial condition, or FAIL if finding one failed (should not happen). This field will only exist if an initial condition was requested.\n",
+    "    t_icconstr: a list of sets of constraints involving n that an initial condition and its length must satisfy\n",
+    "    t_ineqs: a set of inequality constraints that must be satisfied by a solution\n",
+    "    t_largesymbols: whether largesymbols was true\n",
+    "    t_m: the length of the period (nops(A))\n",
+    "    t_mindex: the minimum n such that Q(n) doesn't use defvalue\n",
+    "    t_n: the n symbol\n",
+    "    t_Q: the Q symbol\n",
+    "    t_qrefs: similar to t_forms, but the expressions are not fully unpacked, so this gives a system of recurrences for the pieces\n",
+    "    t_rec: the recurrence, as returned by CompileRec\n",
+    "    t_sampicconstr: an instantiation of the initial condition constraints for the sample initial condition, or an error message if the initial condition is FAIL. This field will only exist if an initial condition was requested.\n",
+    "    t_sample: a table containing sample B values (entry b) and sample forced Q values (entry Q). (This b and Q are the arguments b and Q passed to FindQgSolutions.) If level was not 6, this will be an error message.\n",
+    "    t_symbolics: the set of symbols that are forced to remain symbolic\n",
+    Note::"This is the primary procedure in this package.",
+    Note::"By far, the most important parameters are A, B, and rec.",
+    Note::"If A is passed as an integer, that integer will be ",
+    "taken to be m, and the procedure will iterate through the ",
+    "possible A's of length m containing 0, m, and/or infinity.",
+    Note::"A may contain values other than 0, m, and infinity.",
+    Note::"If B is not passed, then the procedure will iterate ",
+    "through possible B's for each A.",
+    Example::["3", "returns the 12 period-3 solution families to Hofstadter's Q-recurrence, including Golomb's and Ruskey's solutions."],
+    Example::["[3,0,3], [-2,3,2]", "returns Golomb's solution."],
+    Example::["[0,0,infinity], {b[0]=0, b[1]=0}", "returns a generalization of Ruskey's solution."],
+    Example::["[infinity,4,0,0], [[2,0],[3,3]], rec=TRI_HOF", "returns a generalization of A268368"]
+):
+#$GEN("FindQgSolutions")
+FindQgSolutions:=proc(A:=NULL, B:=NULL, {m::integer:=-1, Q::symbol:=':-Q', a::symbol:=':-a', b::symbol:=':-b', n::symbol:=':-n', rec:=HOF, ABverbose::boolean:=false, Astart::list:=[], Bverbose::boolean:=false, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, depthlimit::integer:=-1, extras::set:={}, forcesymbols::boolean:=false, generalQ::boolean:=false, ic::Or(boolean, integer):=IC_DEFAULT, icconstr::list(set):=[], icsmall::boolean:=true, ineqs::set:={}, largesymbols::boolean:=true, level::integer:=DEF_LEVEL, lexleast::boolean:=false, mindex::integer:=DEF_MINDEX, miniclength::integer:=0, mods::set:={}, nodeath::boolean:=false, optlengthic::boolean:=true, small::boolean:=true, smartb::extended_numeric:=0, structure::list:=[], symbolics::set:={}, timeout::extended_numeric:=infinity, valcounts::list:=[], verbose::boolean:=false, vfile:=NULL})
+local mm, fn, opts, icc, vbs:
+description "Main procedure: Find solution families to Hofstadter-like recurrences":
+    #Figure out which m and procedure we want
+    mm:=m:
+    vbs:=verbose:
+    if A = NULL and B = NULL then
+        if mm = -1 then
+            mm:=1:
+        fi:
+        fn:=QgSearch:
+    elif type(A, integer) then
+        mm:=A:
+        fn:=QgSearch:
+    elif B = NULL or B = {NULL} then
+        if m <> -1 and m <> nops(A) then
+            error("A does not have exactly m entries"):
+        fi:
+        fn:=QgSearchA:
+        vbs:=vbs or Bverbose:
+    else
+        if m <> -1 and m <> nops(A) then
+            error("A does not have exactly m entries"):
+        fi:
+        if m <> -1 and m <> nops(B) then
+            error("B does not have exactly m entries"):
+        fi:
+        fn:=QgSearchAB:
+        vbs:=vbs or ABverbose:
+    fi:
+    #Figure out IC
+    icc:=ic:
+    if type(ic, boolean) then
+        if ic then
+            icc:=IC_FULL:
+        else
+            icc:=IC_NONE:
+        fi:
+    fi:
+    #$GEN("FindQgSolutions"; "fn"; {"m"="mm", "ic"="icc", "verbose"="vbs"}; "    return "; {})
+    return fn(':-m'=mm, ':-Q'=Q, ':-a'=a, ':-b'=b, ':-n'=n, ':-rec'=rec, ':-A'=A, ':-ABverbose'=ABverbose, ':-Astart'=Astart, ':-B'=B, ':-Bverbose'=Bverbose, ':-defvalue'=defvalue, ':-defvar'=defvar, ':-depthlimit'=depthlimit, ':-extras'=extras, ':-forcesymbols'=forcesymbols, ':-generalQ'=generalQ, ':-ic'=icc, ':-icconstr'=icconstr, ':-icsmall'=icsmall, ':-ineqs'=ineqs, ':-largesymbols'=largesymbols, ':-level'=level, ':-lexleast'=lexleast, ':-mindex'=mindex, ':-miniclength'=miniclength, ':-mods'=mods, ':-nodeath'=nodeath, ':-optlengthic'=optlengthic, ':-small'=small, ':-smartb'=smartb, ':-structure'=structure, ':-symbolics'=symbolics, ':-timeout'=timeout, ':-valcounts'=valcounts, ':-verbose'=vbs, ':-vfile'=vfile):
+end:
+
+#Given a solution, find an initial condition
+register(__doc, "FindIC(sol, {timeout, largesymbols, small, miniclength, extraicconstr, optlengthic})",
+    sol_input, timeout_input, largesymbols_input,
+    Input::"small (optional): If true, the initial conditions should ",
+    "be as short as possible (default is true)",
+    miniclength_input,
+    Input::"extraicconstr (optional): Either [] (default, indicating ",
+    "nothing) or a list of length m of sets of additional constraints ",
+    "involving n to be enforced on initial conditions",
+    optlengthic_input,
+    Output::"An provably-correct initial condition for the given ",
+    "solution family and a set of constraints that must be satisfied ",
+    "by symbols in that initial condition to make it valid",
+    Note::"This procedure is invoked automatically if ",
+    "FindQgSolutions was called with ic=true or ic=IC_FULL",
+    Note::"This procedure is invoked automatically if ",
+    "FindQgSolutions was called with ic=IC_DEFAULT and A and B ",
+    "values were both passed",
+    Note::"The only reason you would ever use this procedure ",
+    "explicity is if you originally decided you didn't want ",
+    "initial conditions, but then you changed your mind."
+):
+FindIC:=proc(sol::table, {timeout::extended_numeric:=infinity, largesymbols::boolean:=true, small::boolean:=true, miniclength::integer:=0, extraicconstr::list:=[], optlengthic::boolean:=true})
+local A1, B1, sub, i, j, forces, var, Ic, ic, m, a, b, Q, n, s, v, icconstr, ind, badns2, sl, si, inds, w, k, GetSolution, qrefs, lbic, ubic, ct, lastsl, lastsi, ineqconstr, qguess, asm, var2, econstr, tem, qsb, jmp, mindex, defvalue, defvar, GetICModLen, forms, constr, retic, retconstr, symbolics, bqr, reqs, rineqs:
+description "Build a provably-correct initial condition":
+    #Get initial condition of length congruent to k mod m
+    GetICModLen:=proc(k)
+    local constr, i, j, l, icc, ncur, nmin, nmax, icctry, ind, iccsol, Icl, GenerateConstraints, sb, cp, cn, cmaybe, icc2, Relevant, FixUp, FormForce, t, back:
+        #IC length
+        Icl:=proc(n)
+            if k = 0 then
+                return n*m - 1:
+            else
+                return n*m + k - m - 1:
+            fi:
+        end:
+        #Is the constraint relevant?
+        Relevant:=proc(c) local ind:
+            if type(c, `<=`) then
+                #Inequalities are always relevant
+                #(might have an inequality on n)
+                return true:
+            fi:
+            for ind in indets(c) do
+                if type(ind, expr_type) and op(0, ind) = Q and coeff(op(1, ind), n, 1) > 0 and coeff(op(1, ind), n, 0) <= cp then
+                    return true:
+                fi:
+            od:
+            return false:
+        end:
+        #Generate extra constraints
+        GenerateConstraints:=proc(constr, cap, illegals:={}, checkLeft:=true)
+        local ind, ret, c, CheckInd, t:
+            CheckInd:=proc(ind)
+            local idx, nn, h, cstr, ret:
+                ret:={}:
+                if type(ind, expr_type) and op(0, ind) = Q then
+                    idx:=op(1, ind):
+                    if idx in illegals then
+                        #Infinite cycle requirement
+                        #Just reject
+                        return {1<=0}:
+                    elif idx < mindex then
+                        #Death constraint
+                        ret:=ret union {ind = subs(defvar = idx, defvalue)}:
+                    elif idx > cap then
+                        if small then
+                            #Guy needs to be generated properly
+                            nn:=iquo(idx, m):
+                            h:=idx mod m:
+                            cstr:={ind = subs(n=nn, bqr[h+1])}:
+                            ret:=cstr union GenerateConstraints(cstr, cap, illegals union {idx}, false):
+                        else
+                            #Don't consider the future
+                            #Just reject
+                            return {1<=0}:
+                        fi:
+                    fi:
+                fi:
+                return ret:
+            end:
+            ret:={}:
+            for c in constr do
+                for ind in indets(op(1, c)) intersect indets(op(2, c)) do
+                    #Check for things on both sides
+                    #Such things cannot exceed the cap
+                    if type(ind, expr_type) and op(0, ind) = Q and op(1, ind) > cap then
+                        #Reject
+                        return {1<=0}:
+                    fi:
+                od:
+                if checkLeft then
+                    for ind in indets(op(1, c)) do
+                        if ind in symbolics then
+                            #Reject
+                            #This one is supposed to be symbolic
+                            return {1<=0}:
+                        else
+                            ret:=ret union CheckInd(ind):
+                        fi:
+                    od:
+                fi:
+                for ind in indets(op(2, c)) do
+                    ret:=ret union CheckInd(ind):
+                od:
+            od:
+            return ret:
+        end:
+        #Fix up inequality constraints to make them relevant
+        FixUp:=proc(c) local chged, ind, c2, curn, l:
+            if not(type(c, `<=`)) then
+                #Not an inquality
+                #No need to fix
+                return c:
+            fi:
+            chged:=true:
+            c2:=c:
+            while chged do
+                chged:=false:
+                for ind in indets(c2) do
+                    if type(ind, expr_type) and op(0, ind) = Q and coeff(op(1, ind), n, 1) > 0 and coeff(op(1, ind), n, 0) > cp then
+                        chged:=true:
+                        l:=coeff(op(1, ind), n, 0):
+                        curn:=n+floor(l/m):
+                        l:=l mod m:
+                        c2:=subs(ind=subs(n=curn, qrefs[l+1]), c2):
+                        break:
+                    fi:
+                od:
+            od:
+            return c2:
+        end:
+        ##Force forms in case we have an inequality with a formula
+        FormForce:=proc(ind) local l, curn:
+            l:=coeff(op(1, ind), n, 0):
+            curn:=n+floor(l/m):
+            l:=l mod m:
+            if A1[l+1] < infinity and A1[l+1] > m then
+                return {ind = subs(n=curn, forms[l+1])}:
+            fi:
+            return {}:
+        end:
+        #Cap
+        cp:=-1:
+        #Initial stuff
+        icc:=Array([op(icconstr)]):
+        #Add things for slope forcing
+        for i from 1 to m do
+            for ind in indets(qrefs[i]) do
+                icc[i]:=icc[i] union FormForce(ind):
+            od:
+        od:
+        #Rewrite constraints based on k
+        if k > 0 then
+            cp:=k-m-1:
+            for i from k+1 to m do
+                icc[i]:=subs(n=n-1, icc[i]):
+            od:
+        fi:
+        #Add extra constraints that are implied by caps
+        #Example: Ruskey
+        #Different example: HardABSmall (or just HardAB)
+        back:=0:
+        for i from 1 to m do
+            for ind in indets(qrefs[i]) do
+                if type(ind, expr_type) and op(0, ind) = Q and coeff(op(1, ind), n, 1) > 0 then
+                    back:=min(back, floor(coeff(op(1, ind), n, 0)/m)):
+                fi:
+            od:
+        od:
+        icc2:=Array([{}$m]):
+        for i from 1 to m do
+            j:=0:
+            while j <= -back do
+                for cn in icc[i] do
+                    cmaybe:=FixUp(subs(n=n+j, cn)):
+                    if Relevant(cmaybe) then
+                        icc2[i]:=icc2[i] union {cmaybe}:
+                        fi:
+                od:
+                j:=j+1:
+            od:
+        od:
+        icc:=convert(icc2, list):
+        constr:=ReduceIneqs(cleanup(`union`(op(subs(sub, subs({seq(Q[m*n+i]=qguess[1][i+1], i=0..m-1)}, icc)))))):
+        constr:=constr union forces union ineqconstr:
+        #Start trying to satisfy the IC
+        ncur:=0:
+        nmin:=0:
+        nmax:=infinity:
+        #Time
+        t:=0:
+        while true do
+            if t >= timeout then
+                return FAIL, "Timed out":
+            fi:
+            if Icl(ncur) >= miniclength then
+                #Don't even try if it's not long enough
+                icctry:=subs(n=ncur, constr):
+                #Look for extra constraints
+                icctry:=icctry union GenerateConstraints(icctry, Icl(ncur)):
+                #Try to satsify constraints
+                iccsol:=PSolve(icctry):
+            else
+                iccsol:=false:
+            fi:
+            if iccsol = false then
+                #n too small for a solution
+                nmin:=ncur:
+            else
+                #n large enough to have a solution
+                nmax:=ncur:
+                #Store the substitutions for later
+                sb:=iccsol:
+            fi:
+            if nmax = infinity then
+                ncur:=2*nmin + 1:
+            elif nmin + 1 = nmax then
+                break:
+            else
+                ncur:=floor((nmin + nmax)/2):
+            fi:
+            t:=t+1:
+        od:
+        constr:=subs(n=nmax, constr):
+        if largesymbols then
+            #Don't use the stored substitutions
+            #Use your own that keep large symbols around
+            try:
+                sb:=solve(FilterConstraints(constr), indets(constr) minus symbolics):
+            catch:
+                return FAIL, "Symbolic requirements not possible":
+            end try:
+        fi:
+        return subs(sb, [seq(Q[i], i=mindex..Icl(nmax))]), constr:
+    end:
+    
+    #Get m value
+    m:=sol[t_m]:
+    
+    #Get a, b, and Q symbols
+    a:=sol[t_a]:
+    b:=sol[t_b]:
+    Q:=sol[t_Q]:
+    n:=sol[t_n]:
+    
+    #Get mindex and defvalue
+    mindex:=sol[t_mindex]:
+    defvalue:=sol[t_defvalue]:
+    defvar:=sol[t_defvar]:
+    
+    if type(sol[t_sample], table) then
+        #Get the A values
+        A1:=sol[t_avals]:
+        B1:=sol[t_sample][b]:
+    else
+        return FAIL, "Level was too low to determine B values":
+    fi:
+    
+    #Process the solution
+    forces:=sol[t_sample][Q]:
+    #Remove non-Q's from symbolics
+    var:={}:
+    for i in sol[t_symbolics] do
+        if type(i, expr_type) and op(0, i) = Q then
+            var:=var union {i}:
+        fi:
+    od:
+    #Which a/b symbols do we want?
+    var2:=indets(B1) union var:
+    #Get the symbols where they need to be
+    forces:=solve(forces, indets(forces) minus var2):
+    if forces = NULL then
+        return FAIL, "Symbolic requirements were not possible":
+    fi:
+    #Set up substitution
+    sub:={}:
+    sub:=cleanup(sub union {seq(b[i-1] = B1[i], i=1..m)}) union forces:
+    qrefs:=deepsubs(sub, sol[t_qrefs]):
+    qguess:=GetQGuessExpr(Q, A1, B1, n, rec=sol[t_rec], inequalities=true, icconstraints=true, mods=sol[t_bmods], ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar, shallow=true):
+    icconstr:=Array([{}$m]):
+    econstr:=[{}$m]:
+    if nops(extraicconstr) = m then
+        econstr:=extraicconstr:
+    fi:
+    for i from 1 to m do:
+        icconstr[i]:=deepsubs(sub, qguess[3][i] union econstr[i]):
+    od:
+    icconstr:=convert(icconstr, list):
+    forms:=deepsubs(sub, sol[t_forms]):
+    bqr:=subs({seq(b[i-1] = B1[i], i=1..m)}, sol[t_qrefs]):
+    #Incorporate equality/inequality constraints
+    ineqconstr:=ReduceIneqs(subs(sub, sol[t_ineqs])):
+    #Symbolics
+    symbolics:=sol[t_symbolics]:
+    ic:=infinity:
+    retic:=FAIL:
+    for i from 0 to m-1 do
+        Ic, constr:=GetICModLen(i):
+        if Ic <> FAIL then
+            if nops(Ic) < ic then
+                ic:=nops(Ic):
+                retic:=Ic:
+                retconstr:=constr:
+            fi:
+            if not(optlengthic) then
+                #Only consider i=0
+                break:
+            fi:
+        fi:
+    od:
+    if retic = FAIL then
+        return FAIL, constr:
+    else
+        #Clean up retconstr
+        #Make inequalities substitute equalitites in
+        #Also reduce the inequalities
+        reqs:=FilterConstraints(retconstr):
+        rineqs:=FilterConstraints(retconstr, types={`<=`}):
+        retconstr:=retconstr minus rineqs:
+        retconstr:=retconstr union ReduceIneqs(subs(reqs, rineqs)):
+        return retic, retconstr:
+    fi:
+end:
+
+#Lazy initial condition finder
+#(no symbols, not necessarily shortest)
+register(__doc, "FindLazyIC(sol, {timeout, largesymbols, miniclength, sanity})",
+    sol_input, timeout_input, miniclength_input,
+    Input::"sanity (optional): An integer specifying how many ",
+    "additional periods to generate and check after finding a ",
+    "proposed initial condition (default is 100)",
+    Output::"A likely correct initial condition for the given ",
+    "solution family and a set of constraints were used to construct it.",
+    Note::"This procedure is invoked automatically if ",
+    "FindQgSolutions was called with ic=IC_LAZY",
+    Note::"The only reason you would ever use this procedure ",
+    "explicity is if you originally decided you didn't want ",
+    "initial conditions, but then you changed your mind."
+):
+FindLazyIC:=proc(sol::table, {timeout::extended_numeric:=infinity, miniclength:=0, sanity::integer:=100})
+local Qeval, m, a, b, Q, n, mindex, defvalue, defvar, forces, forces2, s, ic, SL, Ic, lbic, ubic, LIc, terms, ok, i, qe, rrec, A, B, varsub:
+description "Build a heuristically-correct initial condition":
+    #Evaluate Q at an input
+    Qeval:=proc(n, a)
+        if A[(n mod m)+1] = 0 then
+            #Constant guy
+            return B[(n mod m)+1]:
+        elif A[(n mod m)+1] = infinity then
+            #Superlinear guy
+            if a = 2 then
+                return SL:
+            else
+                return max(2^floor(n/m), 1):
+            fi:
+        elif A[(n mod m)+1] < infinity then
+            #Linear guy
+            return floor(n/m)*A[(n mod m)+1] + B[(n mod m)+1]:
+        fi:
+    end:
+    
+    #Extract stuff
+    #Get m value
+    m:=sol[t_m]:
+    
+    #Get a, b, and Q symbols
+    a:=sol[t_a]:
+    b:=sol[t_b]:
+    Q:=sol[t_Q]:
+    n:=sol[t_n]:
+    
+    #Get mindex and defvalue
+    mindex:=sol[t_mindex]:
+    defvalue:=sol[t_defvalue]:
+    defvar:=sol[t_defvar]:
+    
+    #Get recurrence
+    rrec:=sol[t_rec]:
+    
+    if type(sol[t_sample], table) then
+        #Get the A values
+        A:=sol[t_avals]:
+        B:=sol[t_sample][b]:
+    else
+        return FAIL, "Level was too low to determine B values":
+    fi:
+    
+    forces:=sol[t_sample][Q]:
+    #Get Q's only
+    forces2:={}:
+    ic:=mindex-1:
+    varsub:={}:
+    for s in forces do
+        if op(0, op(1, s)) = Q then
+            forces2:=forces2 union {s}:
+            ic:=max(ic, op(1, op(1, s))):
+        else
+            varsub:=varsub union {s}:
+        fi:
+    od:
+    ic:=max(ic, miniclength):
+    
+    #Do it
+    Ic:=[seq(Q[i], i=mindex..ic)]:
+    #Make the substitutions
+    Ic:=subs(forces2, Ic):
+    Ic:=subs({seq(Q[i] = Qeval(i, 1), i=mindex..ic)}, Ic):
+    
+    #Set up binary search parameters
+    ic:=ic-mindex+1:
+    lbic:=ic:
+    ubic:=infinity:
+    LIc:=Ic:
+    
+    #Make free parameters symbolic and keep increasing length
+    #of prefix until it works
+    for s from 1 to timeout do
+        #Generate some terms
+        terms:=SeqQg(ic + 2*m, ':-ic'=Ic, ':-rec'=rrec, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar, consistencycheck=false, ':-varsub'=varsub):
+        ok:=true:
+        #Did it survive?
+        if nops(terms) = ic + 2*m then
+            #Are the next m terms what they should be?
+            for i from 1 to m do
+                qe:=Qeval(ic + i + mindex - 1, 2):
+                if qe <> SL and terms[ic + i] <> qe then
+                    ok:=false:
+                    break:
+                fi:
+            od:
+            if ok then
+                #It worked!
+                ubic:=ic:
+            else
+                #It didn't work :(
+                lbic:=ic:
+            fi:
+        else
+            #Nope.  Need more terms
+            lbic:=ic:
+        fi:
+        #It didn't work, so extend the initial condition and try again
+        #if not linsearch then
+        if ubic = infinity then
+            if ic = 0 then
+                ic:=1:
+            else
+                ic:=2*ic:
+            fi:
+        else
+            ic:=ceil((lbic + ubic)/2):
+        fi:
+        if ic < nops(LIc) then
+            Ic:=LIc[1..ic]:
+        else
+            Ic:=[op(Ic), seq(Qeval(i + mindex - 1, 1), i=nops(Ic)+1..ic)]:
+            LIc:=Ic:
+        fi:
+        if ubic < infinity then
+            #We're done here
+            #Let's do a sanity check and go home (hopefully!)
+            terms:=SeqQg(ic + sanity*m, ':-ic'=Ic, ':-rec'=rrec, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar, consistencycheck=false, ':-varsub'=varsub):
+            if nops(terms) <> ic + sanity*m then
+                return FAIL, "Failed sanity check, part 1":
+            fi:
+            for i from nops(terms) by -1 to nops(terms)-m+1 do
+                qe:=Qeval(i + mindex - 1, 2):
+                if qe <> SL and terms[i] <> qe then
+                    return FAIL, "Failed sanity check, part 2":
+                fi:
+            od:
+            return Ic, forces:
+        fi:
+    od:
+    return FAIL, "Timed out":
+end:
+
+#Given recurrence coefficients C and initial conditions L,
+#represent the resulting linear recurrent sequence in a
+#meta-Fibonacci sequence
+register(__doc, "FindMetaFibRep(ic, coefs)",
+    Input::"ic: The initial condition to a linear recurrence ",
+    "with constant coefficients, as a list",
+    Input::"coefs: The coefficients of a linear recurrence ",
+    "with constant coefficients, as a list",
+    Output::"An initial condition and a recurrence that represent ",
+    "the passed sequence in a Hofstadter-like sequence.",
+    Note::"This procedure implements the algorithm in the paper ",
+    "\"Linear Recurrent Subsequences of Meta-Fibonacci Sequences\"",
+    Example::["[1,1], [1,1]", "returns [8, 1, 4, 1, 8, 1, 4, 1, 8, 2, 4, 2, 8, 3, 4, 3, 8, 5, 4, 5, 8, 8, 4, 8, 8, 13, 4, 13, 8, 21, 4, 21, 8, 34, 4, 34, 8, 55, 4, 55], table([t_n = n, t_rec = Q[n - Q[n - 1]] + Q[n - Q[n - 2]] + Q[n - Q[n - 3]], t_Q = Q, t_bracket = \"[\" ])"]
+):
+FindMetaFibRep:=proc(ic, coefs) local A, k, rS, rC, rL, i, j, Q, ok, L, C:
+description "Find a Hofstadter-like recurrence that includes a given linear-recurrent sequence":
+    L:=ic:
+    C:=coefs:
+    k:=nops(C):
+    rL:=[]:
+    #Populate initial conditions
+    for i from 1 to nops(L) do
+        for j from 1 to k do
+            rL:=[op(rL), 2*k*(k-j+1), L[i]]:
+        od:
+    od:
+    A:=[L$k]:
+    rS:=[2, seq(2*i-1, i=1..k)]:
+    rC:=[1, op(C)]:
+    while true do
+        #Generate next A terms
+        for j from 1 to k do
+            A[j]:=[op(A[j]), add(C[i]*A[j][-k-i+j], i=1..j)
+                    +add(C[i]*A[j][-i+j], i=j+1..k)]:
+        od:
+        Q:=SeqQg(nops(rL)+2*k, ':-ic'=rL, ':-rec'=GetRec(':-refs'=rS, ':-coefs'=rC)):
+        ok:=evalb(nops(Q) = nops(rL)+2*k):
+        if ok then
+            #Check if the next quasi-period is what it's supposed to be
+            for j from 1 to k do
+                if Q[nops(rL)+2*j-1] <> 2*k*(k-j+1) then
+                    ok:=false:
+                elif Q[nops(rL)+2*j] <> A[j][-1] then
+                    ok:=false:
+                fi:
+                if not(ok) then
+                    break:
+                fi:
+            od:
+            if ok then
+                #It's all good
+                return rL, GetRec(':-refs'=rS, ':-coefs'=rC):
+            else
+                #Nope! Keep going
+                for j from 1 to k do
+                    rL:=[op(rL), 2*k*(k-j+1), A[j][-1]]:
+                od:
+            fi:
+        fi:
+    od:
+    #How did you manage to get here?
+    return FAIL:
+end:
+
+#Nice display of solution set sol
+register(__doc, "NiceDisplay(sol, {sample, ic, icconstr, sampicconstr, recs, forms, qrefs, descr, terms, symbolics, defics, firstsol, verbose})",
+    sol_input,
+    ", or a set of such solutions",
+    Input::"sample (optional): If true, display a sample solution (default is false)",
+    Input::"ic (optional): If true, display a sample initial condition (default is false)",
+    Input::"icconstr (optional): If true, display constraints on an initial condition (default is false)",
+    Input::"sampicconstr (optional): If true, display constraints on a sample initial condition (default is false)",
+    Input::"recs (optional): If true, display the recurrence (default is true)",
+    Input::"forms (optional): If true, display the formulas for each piece (default is true)",
+    Input::"qrefs (optional): If true, display the not-fully-unpacked formulas/recurrences for each piece (default is false)",
+    Input::"descr (optional): If true, describe how fast each piece grows (default is true)",
+    Input::"terms (optional): If this is positive and ic is ",
+    "true, this is how many terms of the sequence to display ",
+    "given the sample initial condition (default is 0)",
+    Input::"symbolics (optional): If true, display which symbols were forced to be symbolic (default is false)",
+    Input::"defics (optional): If true, display the assumptions about Q(n) when n < mindex (default is true)",
+    Input::"firstsol (optional): The number of the first solution (default is 1)",
+    Input::"verbose (optional): If true, print the number of a solution after it is finished (default is false)",
+    Output::"A nicely-formatted, human-readable description of ",
+    "the solution or of each solution in the set."
+):
+NiceDisplay:=proc(sol, {sample::boolean:=false, ic::boolean:=false, icconstr::boolean:=false, sampicconstr::boolean:=false, recs::boolean:=true, forms::boolean:=true, qrefs::boolean:=false, descr::boolean:=true, terms::integer:=0, symbolics::boolean:=false, defics::boolean:=true, firstsol::integer:=1, verbose::boolean:=false})
+local m, VS, vs, Breqs, Ereqs, Ireqs, s, v, w, ret, i, A, B, Ic, j, descrs, Bsubs, strw, val, inds, ind, ld, Q, a, b, n, str, QQ, lsstr, rfs, mindex, defvalue, defvar, retar:
+description "Display info about a solution family in a nice way":
+    if not(type(sol, Or(set, list))) then
+        VS:={sol}:
+    else
+        VS:=sol:
+    fi:
+    retar:=Array([]):
+    i:=1:
+    for vs in VS do
+        #Get symbols
+        Q:=vs[t_Q]:
+        a:=vs[t_a]:
+        b:=vs[t_b]:
+        n:=vs[t_n]:
+        #Get m
+        m:=vs[t_m]:
+        #Get mindex/defvalue
+        mindex:=vs[t_mindex]:
+        defvalue:=vs[t_defvalue]:
+        defvar:=vs[t_defvar]:
+        #Proceed with gathering stuff
+        A:=vs[t_avals]:
+        Breqs:={}:
+        #Ereqs:=vs[t_eqc] minus Areqs:
+        Ereqs:=vs[t_eqc]:
+        Ireqs:=vs[t_ineqs]:
+        #Get the modularity constraints
+        Bsubs:={}:
+        for s in vs[t_bmods] do
+            v:=op(1, s):
+            w:=op(2, s):
+            Breqs:=Breqs union {[v, sprintf("%d mod %d", w, m)]}:
+            if descr then
+                Bsubs:=Bsubs union {v = w}:
+            fi:
+        od:
+        #if i <> 1 then
+        #    ret:=cat(ret, "\n\n\n"):
+        #fi:
+        ret:="":
+        ret:=cat(ret, sprintf("SOLUTION #%d", i + firstsol - 1)):
+        if recs then
+            ret:=cat(ret, "\n\nRecurrence:"):
+            ret:=cat(ret, sprintf("\n    %a", InstillProperBrackets(vs[t_rec][t_rec], Q, vs[t_rec][t_bracket]))):
+            if defics then
+                ret:=cat(ret, sprintf(", %a if %a", InstillProperBrackets(Q[n], Q, vs[t_rec][t_bracket]) = subs(defvar=n, defvalue), n < mindex)):
+            fi:
+        elif defics then
+            ret:=cat(ret, sprintf("\n\nDefault Initial Conditions:\n    %a if %a", Q(n) = subs(defvar=n, defvalue), n < mindex)):
+        fi:
+        ret:=cat(ret, "\n\nLinear coefficients:"):
+        for s from 1 to m do
+            ret:=cat(ret, sprintf("\n    %a", a[s-1] = A[s])):
+        od:
+        ret:=cat(ret, "\n\nCongruence constraints:"):
+        for s in Breqs do
+            ret:=cat(ret, sprintf("\n    %a = %s", s[1], s[2])):
+        od:
+        ret:=cat(ret, "\n\nEquality constraints:"):
+        for s in cleanup(Ereqs) do
+            ret:=cat(ret, sprintf("\n    %a", s)):
+        od:
+        ret:=cat(ret, "\n\nInequality constraints:"):
+        for s in Ireqs do
+            ret:=cat(ret, sprintf("\n    %a", s)):
+        od:
+        if descr then
+            #Change descriptions from numbers to names
+            ld:=vs[t_descr]:
+            descrs:=Array([""$m]):
+            for j from 1 to m do
+                if ld[j] = 0 then
+                    descrs[j]:="Constant":
+                elif ld[j] = infinity then
+                    descrs[j]:="Exponential":
+                elif ld[j] = 1 and A[j] > m then
+                    descrs[j]:="Steep Linear":
+                elif ld[j] = 1 then
+                    descrs[j]:="Linear":
+                elif ld[j] = 2 then
+                    descrs[j]:="Quadratic":
+                elif ld[j] = 3 then
+                    descrs[j]:="Cubic":
+                elif ld[j] = 4 then
+                    descrs[j]:="Quartic":
+                elif ld[j] = 5 then
+                    descrs[j]:="Quntic":
+                else
+                    descrs[j]:=sprintf("Degree %d", ld[j]):
+                fi:
+            od:
+        fi:
+        if forms or qrefs or descr then
+            str:=[]:
+            if forms then
+                str:=[op(str), "Formulas"]:
+            fi:
+            if qrefs then
+                str:=[op(str), "Recurrences"]:
+            fi:
+            if descr then
+                str:=[op(str), "Descriptions"]:
+            fi:
+            ret:=cat(ret, sprintf("\n\n%s:", StringTools[Join](str, "/"))):
+            for j from 1 to m do
+                ret:=cat(ret, sprintf("\n    %a", InstillProperBrackets(Q[m*n+j-1], Q, vs[t_rec][t_bracket]))):
+                if forms then
+                    #Formulas
+                    ret:=cat(ret, sprintf(" = %a", vs[t_forms][j])):
+                fi:
+                if qrefs then
+                    #Q references
+                    ret:=cat(ret, sprintf(" = %a", vs[t_qrefs][j])):
+                fi:
+                if descr then
+                    #Also print the description
+                    ret:=cat(ret, sprintf(", %s", descrs[j])):
+                fi:
+            od:
+        fi:
+        if sample then
+            if type(vs[t_sample], table) then
+                ret:=cat(ret, "\n\nSample A, B, and Q values:"):
+                B:=vs[t_sample][b]:
+                QQ:=vs[t_sample][Q]:
+                ret:=cat(ret, sprintf("\n    A = %a", A)):
+                ret:=cat(ret, sprintf("\n    B = %a", B)):
+                ret:=cat(ret, sprintf("\n    Other Values:")):
+                for j in QQ do
+                    ret:=cat(ret, sprintf("\n        %a", j)):
+                od:
+            else
+                ret:=cat(ret, "\n\nSample A, B, and Q values were not determined"):
+            fi:
+        fi:
+        if icconstr and not(type(vs[t_icconstr], indexed)) then
+            ret:=cat(ret, "\n\nInitial Condition Constraints:"):
+            for j from 1 to m do
+                ret:=cat(ret, sprintf("\n    For %a:", Q[m*n+j-1])):
+                for s in vs[t_icconstr][j] do
+                    ret:=cat(ret, sprintf("\n        %a", s)):
+                od:
+            od:
+        fi:
+        if symbolics and not(type(vs[t_symbolics], indexed))  then
+            ret:=cat(ret, "\n\nForced Symbolics:"):
+            for s in vs[t_symbolics] do
+                ret:=cat(ret, sprintf("\n    %a", s)):
+            od:
+        fi:
+        if ic and not(type(vs[t_ic], indexed)) then
+            lsstr:="":
+            if vs[t_largesymbols] then
+                lsstr:=" (with large symbols)":
+            fi:
+            ret:=cat(ret, sprintf("\n\nSample Initial Condition%s:", lsstr)):
+            Ic:=vs[t_ic]:
+            ret:=cat(ret, sprintf("\n    %a", Ic)):
+            if terms > 0 and Ic <> FAIL then
+                ret:=cat(ret, sprintf("\nFirst %d Terms:", terms)):
+                ret:=cat(ret, sprintf("\n    %a", SeqQg(terms, ':-ic'=Ic, ':-rec'=vs[t_rec], ':-largesymbols'=vs[t_largesymbols], consistencycheck=false))):
+            elif Ic = FAIL then
+                ret:=cat(ret, sprintf(", %s", vs[t_sampicconstr])):
+            fi:
+        fi:
+        if sampicconstr and not(type(vs[t_sampicconstr], indexed)) and nops(vs[t_sampicconstr]) > 0 and vs[t_ic] <> FAIL then
+            ret:=cat(ret, "\n\nSample Initial Condition Constraints:"):
+            for j in vs[t_sampicconstr] do
+                ret:=cat(ret, sprintf("\n    %a", j)):
+            od:
+        fi:
+        if verbose then
+            printf("Finished %d\n", i):
+        fi:
+        retar(i):=ret:
+        i:=i+1:
+    od:
+    #return ret:
+    return StringTools[Join](convert(retar, list), "\n\n\n"):
+end:
+
+#Give the polynomial that fits the indices starting from startInd
+#and every m thereafter
+register(__doc, "FindPolynomial(m, n, L, startInd)",
+    Input::"m: The period",
+    Input::"n: A symbol",
+    Input::"L: A list containing terms of a sequence",
+    Input::"startInd: An integer, indicating the index of the first entry of L that we will care about",
+    Output::"A polynomial formula for L[m*n+(startInd mod m)] ",
+    "starting with the n that makes this be startInd",
+    Note::"L can contain symbols",
+    Example::["4, n, SeqQg(100, ic=[Q[1],1,0,Q[4],4,4,3]), 8", "returns 2*n^2+(Q[4]-2)*n. This is a generalization of A268368."]
+):
+FindPolynomial:=proc(m, n, L, startInd) local i, x, pts:
+description "Find a polynomial that describes part of a solution":
+    pts:=[]:
+    i:=startInd:
+    x:=iquo(startInd, m):
+    while i < nops(L) do
+        pts:=[op(pts), [x, L[i]]]:
+        i:=i+m:
+        x:=x+1:
+    od:
+    return CurveFitting[PolynomialInterpolation](pts, n):
+end:
+
+#Analyze a particular meta-Fibonacci sequence
+register(__doc, "AnalyzeQg(m, {Q, a, b, n, ic, L, iclen, rec, mindex, defvalue, defvar})",
+    Input::"m: The period",
+    Q_input, a_input, b_input, n_input,
+    Input::"ic (optional) [] (default, meaning L and iclen",
+    "should be specified), or an initial condition used to ",
+    "generate a sequence to analyze",
+    Input::"L: [] (default, meaning ic should be specified), or a list containing terms of a sequence",
+    Input::"iclen: if L is specified, the number of terms in L ",
+    "that constitute an exceptional initial condition and should ",
+    "not be analyzed (default is 0)",
+    rec_input, mindex_input, defvalue_input, defvar_input,
+    Input::"level (optional): the level to pass to FindQgSolutions (default is 0, since we expect to find a solution)",
+    Output::"A solution family with period m including the ",
+    "given sequence, if possible",
+    Example::["3, ic=[3,2,1]", "returns the Golomb family."],
+    Example::["4, L=SeqQg(100, ic=[Q[1],1,0,Q[4],4,4,3]), 7", "returns the A268368 family."]
+):
+AnalyzeQg:=proc(m, {Q::symbol:=':-Q', a::symbol:=':-a', b::symbol:=':-b', n::symbol:=':-n', ic::list:=[], L::list:=[], iclen::integer:=0, rec:=HOF, mindex::integer:=DEF_MINDEX, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, level::integer:=0, verbose::boolean:=false}) local A, B, i, dif, ret, xtras, rrec:
+description "Find a solution family for a given sequence":
+    if ic <> [] then
+        ret:=AnalyzeQg(m, ':-Q'=Q, ':-a'=a, ':-b'=b, ':-n'=n, ':-iclen'=nops(ic), ':-L'=SeqQg(nops(ic)+3*m, ':-ic'=ic, ':-rec'=rec, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar), ':-rec'=rec, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar):
+        ret[t_ic]:=ic:
+        return op(ret):
+    else
+        #Compile the recurrence
+        rrec:=CompileRec(rec):
+        A:=Array([infinity$m]):
+        B:=Array([seq(b[i-1], i=1..m)]):
+        #Find the constant or linear parts
+        for i from iclen+1 to iclen+m do
+            dif:=L[i+m]-L[i]:
+            if L[i+2*m]-L[i+m] = dif then
+                A[(i mod m)+1]:=dif:
+                B[(i mod m)+1]:=L[i]-iquo(i, m)*dif:
+            #else
+            #    print(i, dif):
+            fi:
+        od:
+        A:=convert(A, list):
+        B:=convert(B, list):
+        if verbose then
+            print("A", A):
+            print("B", B):
+        fi:
+        #Run the analysis
+        ret:=FindQgSolutions(A, B, ':-a'=a, ':-b'=b, ':-n'=n, ':-rec'=rrec, ':-level'=level, ':-mindex'=mindex, ':-defvalue'=defvalue, ':-defvar'=defvar, ':-ic'=false, ':-ABverbose'=verbose):
+        if ret = NULL then
+            return FAIL:
+        else
+            return op(ret):
+        fi:
+    fi:
+end:
+
+#Total number of solutions if we add non-lexicographically
+#least ones
+register(__doc, "CountTotal(sol)",
+    Input::"sol: A set of solutions returned by FindQgSolution ",
+    "with the lexleast option set to true",
+    Output::"The total number of solution families with the given ",
+    "parameters, assuming a shift-invariant recurrence",
+    Example::["{the 86 period-6 lexleast=true Hofstadter families}", "returns 294"]
+):
+CountTotal:=proc(sol) local ct, i:
+description "Count the total number of solution families given a generating subset":
+    ct:=0:
+    for i from 1 to nops(sol) do
+        ct:=ct + GetPeriod(sol[i][t_avals]):
+    od:
+    return ct:
+end:#3256 from 8
+
+##########################################################
+##CONSTANT RECURRENCES
+
+#Constant recurrences
+HOF:=GetRec():
+TRI_HOF:=GetRec(refs=[1,2,3]):
+QUAD_HOF:=GetRec(refs=[1,2,3,4]):
+CONWAY:=CompileRec(Q[Q[n-1]]+Q[n-Q[n-1]]):
+
+#Help procedure
+Help:=proc() local ret:
+    if _passed = constants then
+        ret:="List of Important Constants":
+        ret:=cat(ret, "\n    HOF: Hofstadter's recurrence Q(n)=Q(n-Q(n-1))+Q(n-Q(n-2))"):
+        ret:=cat(ret, "\n    TRI_HOF: Recurrence Q(n)=Q(n-Q(n-1))+Q(n-Q(n-2))+Q(n-Q(n-3))"):
+        ret:=cat(ret, "\n    QUAD_HOF: Recurrence Q(n)=Q(n-Q(n-1))+Q(n-Q(n-2))+Q(n-Q(n-3))+Q(n-Q(n-4))"):
+        ret:=cat(ret, "\n    CONWAY: Hofstadter-Conway recurrence Q(n)=Q(Q(n-1))+Q(n-Q(n-1))"):
+        printf("%s\n", ret):
+    else
+        getHelp(__doc)(_passed):
+    fi:
+end:
+
+end module:

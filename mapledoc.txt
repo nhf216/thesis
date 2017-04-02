@@ -1,0 +1,342 @@
+##################################################################
+##mapledoc.txt: Some Maple code to make documentation easier     #
+##                                                               #
+##Save this file as mapledoc.txt                                 #
+##To use it, stay in the                                         #
+##same directory, start Maple (by typing: maple <Enter> )        #
+##and then type:  read mapledoc.txt <Enter>                      #
+##Then follow the instructions given there                       #
+##                                                               #
+##Written by Nathan Fox, Rutgers University,                     #
+##fox at math dot rutgers dot edu                                #
+##################################################################
+
+#This package must be loaded exactly once.
+#To ensure this works properly,
+#do not ever use the variable __mapledoc__protected__
+#when using this package in your application
+
+#About mapledoc.txt
+About:=proc()
+    printf("%s\n\n%s\n\n%s@math.rutgers.edu\n\n%s\n%s\n\n%s\n%s\n",
+        "This is mapledoc.txt",
+        "It exists to make documenting your Maple code easier",
+        "Please report bugs to fox",
+        "The most current version of this package is available from",
+        "http://www.math.rutgers.edu/~nhf12/research/mapledoc.txt",
+        "For a list of the procedures in this package, along with their usage, type Help();.",
+        "For help with a specific procedure, type Help(procedure_name);."):
+end:
+
+if not assigned(__mapledoc__protected__) then
+
+__mapledoc__protected__:=0:
+
+#Object containing doc information for a single procedure
+module ProcedureDoc()
+    option object:
+    
+    #Procedure name
+    local pname:
+    #Procedure arguments
+    local argz:
+    #Procedure inputs
+    local input:
+    #Procedure output
+    local output:
+    #Notes about the procedure
+    local notes:
+    #Example(s) of procedure use (in special internal format)
+    local example:
+    
+    #TODO continue documenting this module
+    export ModuleApply::static:=proc()
+        return Object(ProcedureDoc, _passed):
+    end:
+    
+    export ModuleCopy::static:=proc(self::ProcedureDoc, proto::ProcedureDoc, pn, ar, $) local ag, ex:
+        if _npassed = 2 then
+            self:-pname := proto:-pname:
+            self:-argz := proto:-argz:
+            self:-input := proto:-input:
+            self:-output := proto:-output:
+            self:-notes := proto:-notes:
+            self:-example := proto:-example:
+        else
+            self:-pname:=pn:
+            if type(ar, list) then
+                self:-argz:="":
+                for ag in ar do
+                    self:-argz:=cat(self:-argz, convert(ag, string), ", "):
+                od:
+                if length(self:-argz) > 0 then
+                    self:-argz:=self:-argz[..-3]:
+                fi:
+            else
+                self:-argz:=convert(ar, string):
+            fi:
+        fi:
+        
+        self:-input := false:
+        self:-output := false:
+        self:-notes := false:
+        self:-example := false:
+    end:
+    
+    export ModulePrint::static:=proc(self::ProcedureDoc)
+        return nprintf("%s(%s)", self:-pname, self:-argz):
+    end:
+    
+    export getPrototype::static:=proc(self::ProcedureDoc)
+        return sprintf("%s(%s)", self:-pname, self:-argz):
+    end:
+    
+    export getDoc::static:=proc(self::ProcedureDoc) local ret, ex:
+        ret:=sprintf("Procedure %s(%s):", self:-pname, self:-argz):
+        if self:-input <> false then
+            ret:=cat(ret, sprintf("\n\nInputs:\n%s", self:-input)):
+        fi:
+        if self:-output <> false then
+            ret:=cat(ret, sprintf("\n\nOutput:\n%s", self:-output)):
+        fi:
+        if self:-notes <> false then
+            ret:=cat(ret, sprintf("\n\nNotes:\n%s", self:-notes)):
+        fi:
+        if self:-example <> false then
+            ret:=cat(ret, "\n"):
+            for ex in self:-example do
+                ret:=cat(ret, sprintf("\nExample:\n%s(%s) %s", self:-pname, op(ex))):
+            od:
+        fi:
+        return ret:
+    end:
+    
+    export getName::static:=proc(self::ProcedureDoc)
+        return self:-pname:
+    end:
+    
+    export setInput::static:=proc(self::ProcedureDoc, inp::string)
+        self:-input:=inp:
+    end:
+    
+    export addInput::static:=proc(self::ProcedureDoc, inp::string)
+        if self:-input <> false then
+            self:-input:=cat(self:-input, "\n", inp):
+        else
+            setInput(self, inp):
+        fi:
+    end:
+    
+    export setOutput::static:=proc(self::ProcedureDoc, outp::string)
+        self:-output:=outp:
+    end:
+    
+    export setNotes::static:=proc(self::ProcedureDoc, nots::string)
+        self:-notes:=nots:
+    end:
+    
+    export addNotes::static:=proc(self::ProcedureDoc, nots::string)
+        if self:-notes <> false then
+            self:-notes:=cat(self:-notes, "\n", nots):
+        else
+            setNotes(self, nots):
+        fi:
+    end:
+    
+    export setExample::static:=proc(self::ProcedureDoc, eargs, etext::string)
+        if type(eargs, list) then
+            self:-example:=[[StringTools[Join](eargs, ", "), etext]]:
+        elif type(eargs, string) then
+            self:-example:=[[eargs, etext]]:
+        else
+            error "Second argument must either be a string or a list of strings":
+        fi:
+    end:
+    
+    export addExample::static:=proc(self::ProcedureDoc, eargs, etext::string)
+        if self:-example <> false then
+            if type(eargs, list) then
+                self:-example:=[op(self:-example), [StringTools[Join](eargs, ", "), etext]]:
+            elif type(eargs, string) then
+                self:-example:=[op(self:-example), [eargs, etext]]:
+            else
+                error "Second argument must either be a string or a list of strings":
+            fi:
+        else
+            setExample(self, eargs, etext):
+        fi:
+    end:
+end:
+
+#Object containing doc information for an entire package
+module DocManager()
+    option object:
+    
+    #Table of procedures, indexed by their names
+    local procs:
+    #Sorted list of procedure names
+    local procnames:
+    
+    #Make a constructor
+    export ModuleApply::static:=proc()
+        return Object(DocManager, _passed, 0):
+    end:
+    
+    #Still part of the constructor
+    export ModuleCopy::static:=proc(self::DocManager, proto::DocManager, a, $)
+        if _npassed = 2 then
+            #Copy an object
+            self:-procs:=proto:-procs:
+            self:-procnames:=proto:-procnames:
+        else
+            #New object
+            self:-procs:=table():
+            self:-procnames:=[]:
+        fi:
+    end:
+    
+    #Make a DocManager print nicely
+    export ModulePrint::static:=proc(self::DocManager)
+        nprintf("DocManager: %a", self:-procnames):
+    end:
+    
+    #register method: way of adding procedures to the DocManager
+    export register::static:=proc(self::DocManager, procdec::string) local i, j, action, data, proced, pname, last, captl:
+        #String order capitalization
+        captl:=proc(x,y)
+            if StringTools[Capitalize](x) < StringTools[Capitalize](y) then
+                return true:
+            elif StringTools[Capitalize](x) = StringTools[Capitalize](y) then
+                return x < y:
+            else
+                return false:
+            fi:
+        end:
+        #Extract the procedure
+        if StringTools[RegMatch]("^[A-Za-z_][A-Za-z0-9_]*\(.*\)$", procdec) then
+            i:=StringTools[Search]("(", procdec):
+            pname:=procdec[..(i-1)]:
+            proced:=ProcedureDoc(pname, procdec[(i+1)..-2]):
+            #Insert into list
+            i:=ListTools[BinaryPlace](self:-procnames, pname, captl):
+            self:-procnames:=[op(1..i, self:-procnames), pname, op(i+1..nops(self:-procnames), self:-procnames)]:
+            #Insert into table
+            self:-procs[pname]:=proced:
+        else
+            error "Argument %1 must be of the form procname(args)", procdec:
+        fi:
+        
+        i:=3:
+        j:=3:
+        
+        #Iterate over the arguments to add data to the procedure
+        while i <= _npassed do
+            #Arguments are of type Action::Data
+            if not type(_passed[i], `::`) then
+                if i = j then
+                    error "Argument %1 not of type Action::Data", _passed[i]:
+                else
+                    if not type(data, string) or not type(_passed[i], string) then
+                        error "Next line shortcuts only legal when data is of type string":
+                    fi:
+                    data:=cat(data, _passed[i]):
+                fi:
+            else
+                action, data:=op(_passed[i]):
+            fi:
+            #Find extra strings on additional lines
+            for j from i+1 to _npassed do
+                if type(_passed[j], `::`) then
+                    break:
+                fi:
+            od:
+            if i = j-1 then
+                #End of the stream of input for that part, so process
+                if action = `Inputs` then
+                    if type(data, string) then
+                        setInput(proced, data):
+                    else
+                        error "Data in %1 must be a string", _passed[i]:
+                    fi:
+                elif action = `Input` then
+                    if type(data, string) then
+                        addInput(proced, data):
+                    else
+                        error "Data in %1 must be a string", _passed[i]:
+                    fi:
+                elif action = `Output` then
+                    if type(data, string) then
+                        setOutput(proced, data):
+                    else
+                        error "Data in %1 must be a string", _passed[i]:
+                    fi:
+                elif action = `Notes` then
+                    if type(data, string) then
+                        setNotes(proced, data):
+                    else
+                        error "Data in %1 must be a string", _passed[i]:
+                    fi:
+                elif action = `Note` then
+                    if type(data, string) then
+                        addNotes(proced, data):
+                    else
+                        error "Data in %1 must be a string", _passed[i]:
+                    fi:
+                elif action = `Examples` then
+                    if type(data, list) then
+                        if type(data[1], string) and type(data[2], string) then
+                            setExample(proced, op(data)):
+                        else
+                            error "Data in %1 must be a list containing two strings", _passed[i]:
+                        fi:
+                    else
+                        error "Data in %1 must be a list containing two strings", _passed[i]:
+                    fi:
+                elif action = `Example` then
+                    if type(data, list) then
+                        if type(data[1], string) and type(data[2], string) then
+                            addExample(proced, op(data)):
+                        else
+                            error "Data in %1 must be a list containing two strings", _passed[i]:
+                        fi:
+                    else
+                        error "Data in %1 must be a list containing two strings", _passed[i]:
+                    fi:
+                else
+                    error "Action in %1 must be one of Example, Examples, Input, Inputs, Note, Notes, or Output", _passed[i]:
+                fi:
+            fi:
+            i:=i+1:
+        od:
+    end:
+    
+    export getProcnames::static:=proc(self::DocManager)
+        return self:-procnames:
+    end:
+    
+    export getProcs::static:=proc(self::DocManager)
+        return self:-procs:
+    end:
+    
+    #Procedure that generates a Help procedure
+    export getHelp::static:=proc(self::DocManager) local Help:
+        Help:=proc(proc_name:=false) local pname:
+            if proc_name = false then
+                printf("%s\n", "Alphabetical List of Procedures (with parameters):"):
+                for pname in getProcnames(self) do
+                    printf("    %s\n", getPrototype(getProcs(self)[pname])):
+                od:
+            else
+                pname:=convert(proc_name, string):
+                if pname in getProcnames(self) then
+                    printf("%s\n", getDoc(getProcs(self)[pname])):
+                else
+                    error "%1 not a procedure in this package", proc_name:
+                fi:
+            fi:
+        end:
+        return Help:
+    end:
+end:
+
+fi:#End load-once portion
