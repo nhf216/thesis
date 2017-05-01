@@ -1,0 +1,99 @@
+##################################################################
+##RSTsearch.txt: This file is made to accompany Chapter 7        #
+##of Nathan Fox's doctoral thesis                                #
+##                                                               #
+##Save this file as RSTsearch.txt                                #
+##To use it, stay in the                                         #
+##same directory, start Maple (by typing: maple <Enter> )        #
+##and then type:  read RSTsearch.txt <Enter>                     #
+##                                                               #
+##This file depends on mapledoc.txt and nonstdhof.txt, which can #
+##be found in the    same online directory as this file          #
+##                                                               #
+##Written by Nathan Fox, Rutgers University,                     #
+##fox at math dot rutgers dot edu                                #
+##Version 1.0.0                                                  #
+##################################################################
+
+read(`nonstdhof.txt`): with(NonStdHof):
+
+#mapledoc
+Input:=':-Input':
+Output:=':-Output':
+Note:=':-Note':
+__doc:=DocManager():
+
+printf("%s\n\n%s\n\n%s@math.rutgers.edu\n\n%s\n\n%s\n%s\n%s\n",
+    "This is RSTsearch.txt",
+    "It accompanies Chapter 7 of \"An Exploration of Nested Recurrences Using Experimental Mathematics\" by Nathan Fox",
+    "Please report bugs to fox",
+    "The most current version of this package is available from",
+    "http://github.com/nhf216/thesis/RSTsearch.txt",
+    "For a list of the procedures in this package, along with their usage, type HelpRST();.",
+    "For help with a specific procedure, type HelpRST(procedure_name);.",
+    "For a brief description of a specific procedure, type Describe(procedure_name);."):
+
+register(__doc, "RST_analog_1_ic(m, {blocks, N})",
+    Input::"m: an integer indicating how many sequences ",
+    "to interleave",
+    Input::"blocks: an integer specifying how many \"blocks\" ",
+    "back the sequence should go in its construction (default ",
+    "is 1)",
+    Input::"N: a symbol; a parameter in the construction ",
+    "(default is N)",
+    Output::"An initial condition generalizing the initial ",
+    "condition [5,9,4,6] that generates A272610",
+    Example::["5", "returns [4, N, 5, 5, N, 4, 5, 10, 10, N]"],
+    Example::["5, blocks=2", "returns [9, N, 5, 5, N, 9, N, 5, 5, N, 9, 5, 10, 10, N]"],
+    Example::["6, blocks=2, N=M", "returns [11, M, 6, 6, 6, M, 11, M, 6, 6, 6, M, 11, 6, 12, 12, 12, M]"]
+):
+RST_analog_1_ic:=proc(m, {blocks:=1, N:=':-N'})
+description "What initial conditions are being used in RST_analog_1?":
+local tic, i:
+    tic:=[m*blocks-1, N, m$(m-3), N]:
+    for i from 2 to blocks do
+        tic:=[op(tic), m*blocks-1, N, m$(m-3), N]:
+    od:
+    tic:=[op(tic), m*blocks-1, m, (2*m)$(m-3), N]:
+    #print(tic):
+    return tic:
+end:
+
+
+register(__doc, "RST_analog_1(m, terms, {blocks, N, includeassumptions})",
+    Input::"m: an integer indicating how many sequences ",
+    "to interleave",
+    Input::"terms: an integer specifying how many terms to generate",
+    Input::"blocks: an integer specifying how many \"blocks\" ",
+    "back the sequence should go in its construction (default ",
+    "is 1)",
+    Input::"N: a symbol; a parameter in the construction ",
+    "(default is N)",
+    Input::"includeassumptions: should inequality constraints ",
+    "on N be returned as part of the output? (default is true)",
+    Output::"The first terms terms of the sequence with initial ",
+    "condition RST_analog_1_ic(m, {blocks, N}), or as many ",
+    "terms as exist if it dies before then.  If includeassumptions ",
+    "then also a constraint on N",
+    Example::["5, 20", "returns [4, N, 5, 5, N, 4, 5, 10, 10, N, 4, 10, 15, 5, N, 4, 15, 10, 15, 2*N], {17 <= N}"],
+    Example::["5, 50, blocks=2", "returns [9, N, 5, 5, N, 9, N, 5, 5, N, 9, 5, 10, 10, N, 9, 5, 15, 15, 2*N, 9, 10, 20, 15, 2*N, 9, 15, 25, 15, 2*N, 9, 20, 25, 15, 3*N, 9, 25, 25, 20, 3*N, 9, 25, 30, 25, 3*N, 9, 25, 40, 20, 3*N], {17 <= N}"],
+    Example::["6, 50, blocks=2, N=M, includeassumptions=false", "returns [11, N, 6, 6, 6, N, 11, N, 6, 6, 6, N, 11, 6, 12, 12, 12, N, 11, 6, 18, 18, 12, 2*N, 11, 12, 24, 18, 12, 2*N, 11, 18, 30, 18, 18, 2*N, 11, 24, 30, 18, 18, 4*N, 11, 30, 30, 24, 24, 4*N, 11, 30]"]
+):
+RST_analog_1:=proc(m, terms, {blocks:=1, N:=':-N', includeassumptions:=true}) 
+description "Try to construct analogs to the R, S, and T sequences":
+#local tic, i:
+    #tic:=[m*blocks-1, N, m$(m-3), N]:
+    #for i from 2 to blocks do
+    #    tic:=[op(tic), m*blocks-1, N, m$(m-3), N]:
+    #od:
+    #tic:=[op(tic), m*blocks-1, m, (2*m)$(m-3), N]:
+    #print(tic):
+    #return SeqQg(terms, ic=tic, bigsymbols=[N], ':-includeassumptions'=includeassumptions):
+    return SeqQg(terms, ic=RST_analog_1_ic(m, ':-blocks'=blocks, ':-N'=N), bigsymbols=[N], ':-includeassumptions'=includeassumptions):
+end:
+
+#[9, 20, 5, 5, 20, 9, 20, 5, 5, 20, 9, 5, 10, 10, 20]
+#[7, 26, 8, 8, 8, 8, 8, 26, 7, 8, 16, 16, 16, 16, 16, 26]
+
+#Help procedure
+HelpRST:=getHelp(__doc):

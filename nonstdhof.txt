@@ -2724,6 +2724,7 @@ register(__doc, "GuessQuasipolynomial(L, {n, d, m, minm, startind, bigsymbols, b
     Example::["[3,2,N,3,5,N+3,3,8,N+6,3,11,N+9,3,14,N+12], bigsymbols=[N], bigsymbolmods={[N,1,3]}, startind=N+1", "returns [], [3*n-N, 3*n-2, 3]"]
 ):
 GuessQuasipolynomial:=proc(L::list, {n::symbol:=n1, d::integer:=-1, m::integer:=-1, minm::integer:=-1, startind::algebraic:=1, bigsymbols::list:=[], bigsymbolmods::set(list):={}, verbose::boolean:=false})
+description "Guess a quasipolynomial fitting the given data.":
 local mm, nn, k, ret, i, j, mind, deg, dd:
     #print(bigsymbols):
     if d = -1 then
@@ -3039,6 +3040,7 @@ register(__doc, "ProveLongTermEventualSolution(ic, {iters, Q, n, icsym, rec, big
 ):
 #Prove an eventual for-a-while solution
 ProveLongTermEventualSolution:=proc(ic::list, {iters::extended_numeric:=infinity, Q::symbol:=':-Q', n::symbol:=n1, icsym::symbol:=n1, rec:=HOF, bigsymbols::list:=[], bigsymbolmods::set(list):={}, mindex::integer:=DEF_MINDEX, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, verbose::boolean:=false, lmin::extended_numeric:=10, lcap::extended_numeric:=infinity, d::integer:=-1, largestnumber::integer:=10^100, sampleNs:=NULL, minm::integer:=1, belazy::boolean:=false, checkwork:=false, interjectText:=NULL, simp:=false})
+description "Determine, with proof, the next blocks of behavior of the sequence described by ic.":
 #TODO something with N bound stopping condition
 #TODO something with floor bound stopping condition
 #TODO make sure nonstandard mods work
@@ -3105,6 +3107,7 @@ register(__doc, "ProveEventualSolution(ic, {Q, n, icsym, rec, bigsymbols, bigsym
 #Either returns false, or returns number of terms required to
 #make solution work, along with how long the solution persists
 ProveEventualSolution:=proc(ic::list, {Q::symbol:=':-Q', n::symbol:=n1, icsym::symbol:=n1, rec:=HOF, bigsymbols::list:=[], bigsymbolmods::set(list):={}, mindex::integer:=DEF_MINDEX, defvalue::algebraic:=DEF_DEFVALUE, defvar::symbol:=DEF_DEFVAR, verbose::boolean:=false, lmin::extended_numeric:=10, lcap::extended_numeric:=infinity, d::integer:=-1, largestnumber::integer:=10^100, minm::integer:=1, belazy::boolean:=false, checkwork:=false, simp:=false})
+description "Determine, with proof, the next block of behavior of the sequence described by ic.":
 #local m, sol, mods, L, possmods, N, i, g:
 local m, sol, reqs, i, j, ind, inds, AB, tic, l, Nmin, Nmax, sq, bsm, o1i, minn, req, req2s, req2, sb, ic2, treqs, ok, asm, reqinds, minhs, treq, maxhs, sf, nnm, ok2, Nbd, qpm, ABw, moreargs:
     #print("Starting!"):
