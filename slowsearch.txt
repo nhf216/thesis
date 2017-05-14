@@ -1,0 +1,1262 @@
+##################################################################
+##slowsearch.txt: This file is made to accompany Chapters 6 & 9  #
+##of Nathan Fox's doctoral thesis                                #
+##                                                               #
+##Save this file as slowsearch.txt                               #
+##To use it, stay in the                                         #
+##same directory, start Maple (by typing: maple <Enter> )        #
+##and then type:  read slowsearch.txt <Enter>                    #
+##                                                               #
+##This file depends on mapledoc.txt and nicehof.txt, which can   #
+##be found in the same online directory as this file             #
+##                                                               #
+##Written by Nathan Fox, Rutgers University,                     #
+##fox at math dot rutgers dot edu                                #
+##Version 1.0.0                                                  #
+##################################################################
+
+read(`nicehof.txt`):
+with(NiceHof):
+
+#mapledoc
+Input:=':-Input':
+Output:=':-Output':
+Note:=':-Note':
+__doc:=DocManager():
+
+printf("%s\n\n%s\n\n%s@math.rutgers.edu\n\n%s\n\n%s\n%s\n%s\n%s\n%s\n",
+    "This is slowsearch.txt",
+    "It accompanies Chapters 6 and 9 of \"An Exploration of Nested Recurrences Using Experimental Mathematics\" by Nathan Fox",
+    "Please report bugs to fox",
+    "The most current version of this package is available from",
+    "http://github.com/nhf216/thesis/slowsearch.txt",
+    "For a list of the procedures in this package, along with their usage, type HelpSlow();.",
+    "For help with a specific procedure, type HelpSlow(procedure_name);.",
+    "For a brief description of a specific procedure, type Describe(procedure_name);.",
+    "For a description of what the coding scheme for recurrences means, type HelpSlow(CODE)."):
+
+#Help_tanny:=proc()
+#    print(`FindSlowSeqs(strt::Or(integer, list):=0, stp::Or(integer, list):=infinity, {fil:=terminal, gammax::extended_numeric:=infinity, inclConway::boolean:=true, inclHof::boolean:=true, inclNonhomog::boolean:=true, maxk::extended_numeric:=infinity, mink::integer:=1, n::symbol:=':-n', perreps::integer:=10, Q::symbol:=':-Q', reportLevel::integer:=INTERESTING, sample::boolean:=true, store::boolean:=true, terms_factor::integer:=41, tune::integer:=3/4, useFirst::boolean:=false, verbose::boolean:=true})`):
+#end:
+
+#Partitons of n into exactly k parts with max part <= m
+PartsExactly:=proc(n, k, m:=infinity) local ret, i, tm, tp:
+    ret:=[]:
+    if k = 0 and n = 0 then
+        return [[]]:
+    elif k = 0 or n = 0 then
+        return ret:
+    else
+        #Pick largest part
+        for i from 1 to min(n-k+1, m) do
+            tm:=PartsExactly(n-i, k-1, i):
+            for tp in tm do
+                ret:=[op(ret), [op(tp), i]]:
+            od:
+        od:
+    fi:
+    return ret:
+end:
+
+#Partitions of n with at LEAST k parts and max part m
+Parts:=proc(n, k, m:=infinity) local ret, i, tm, tp:
+    ret:=[]:
+    if n = 0 and k <= 0 then
+        return [[]]:
+    elif n <= 0 or m = 0 then
+        return ret:
+    else
+        #Pick largest part
+        for i from 1 to min(m, n-k+1) do
+            tm:=Parts(n-i, k-1, i):
+            for tp in tm do
+                ret:=[op(ret), [op(tp), i]]:
+            od:
+        od:
+    fi:
+    return ret:
+end:
+
+#Slow partitions of n with at LEAST k parts and max part m
+SlowParts:=proc(n, k, m:=infinity) local ret, i, tm, tp:
+    ret:=[]:
+    if n = 0 and m = 0 and k <= 0 then
+        return [[]]:
+    elif n <= 0 or m = 0 then
+        return ret:
+    else
+        #Pick largest part
+        if m = infinity then
+            for i from 1 to floor((-1+sqrt(8*n+1))/2) do
+                ret:=[op(ret), op(SlowParts(n, k, i))]:
+            od:
+        else
+            tm:=SlowParts(n-m, k-1, m):
+            for tp in tm do
+                ret:=[op(ret), [op(tp), m]]:
+            od:
+            tm:=SlowParts(n-m, k-1, m-1):
+            for tp in tm do
+                ret:=[op(ret), [op(tp), m]]:
+            od:
+        fi:
+    fi:
+    return ret:
+end:
+
+#Slow ICs of length k
+#min term is m
+SlowICs:=proc(k, m:=1) local ret, tm, tp:
+    ret:=[]:
+    if k = 0 then
+        return []:
+    elif k = 1 then
+        return [[m]]:
+    else
+        tm:=SlowICs(k-1,  m):
+        for tp in tm do
+            ret:=[op(ret), [m, op(tp)]]:
+        od:
+        tm:=SlowICs(k-1,  m+1):
+        for tp in tm do
+            ret:=[op(ret), [m, op(tp)]]:
+        od:
+    fi:
+    return ret:
+end:
+
+#Ordered partitions of n into exactly k parts with zeroes allowed
+#m=cap on parts
+#mn=min part
+OrdPartsInclZeroes:=proc(n, k, m:=infinity, mn:=0) local ret, i, tm, tp:
+    ret:=[]:
+    if n = k*mn then
+        return [[mn$k]]:
+    elif n < k*mn or k = 0 then
+        return ret:
+    else
+        #Pick a part
+        for i from max(mn,0) to min(m, n) do
+            tm:=OrdPartsInclZeroes(n-i, k-1, m, mn):
+            for tp in tm do
+                ret:=[op(ret), [op(tp), i]]:
+            od:
+        od:
+    fi:
+    return ret:
+end:
+
+#Ordered partitions of n into exactly k parts with parts
+#from set
+OrdPartsSet:=proc(n, k, S, reqs::list:=[])
+local ret, i, tm, tp, req, newreqs, nrs, j, ok:
+    ret:=[]:
+    if n = 0 and k = 0 then
+        #Make sure we're allowed to have 0 of each part
+        for req in reqs do
+            if not(0 in req[2]) then
+                return ret:
+            fi:
+        od:
+        return [[]]:
+    elif n < k*min(S) or k = 0 then
+        return ret:
+    else
+        #Pick a part
+        for i in S do
+            ok:=true:
+            newreqs:=[]:
+            for req in reqs do
+                if i in req[1] then
+                    nrs:={}:
+                    for j in req[2] do
+                        if j > 0 then
+                            nrs:=nrs union {j-1}:
+                        fi:
+                    od:
+                    if nrs = {} then
+                        ok:=false:
+                        break:
+                    fi:
+                    newreqs:=[op(newreqs), [req[1], nrs]]:
+                else
+                    newreqs:=[op(newreqs), req]:
+                fi:
+            od:
+            if ok then
+                tm:=OrdPartsSet(n-i, k-1, S, newreqs):
+                for tp in tm do
+                    ret:=[op(ret), [op(tp), i]]:
+                od:
+            fi:
+        od:
+    fi:
+    return ret:
+end:
+
+#gamams are already in increasing order
+#Check if betas are in increasing order among gammas that are equal
+CheckBG:=proc(betas, gammas) local i, j, G, lasti, gval:
+    lasti:=1:
+    gval:=gammas[1]:
+    G:=[op(gammas), infinity]:
+    for i from 2 to nops(G) do
+        if G[i] <> gval then
+            for j from lasti+1 to i-1 do
+                if betas[j] < betas[j-1] then
+                    return false:
+                fi:
+            od:
+            lasti:=i:
+            gval:=G[i]:
+        fi:
+    od:
+    return true:
+end:
+
+#Is the sequence slow?
+IsSlow:=proc(L, verbose:=false) local i:
+    for i from 2 to nops(L) do
+        if not(L[i] - L[i-1] in {0,1}) then
+            if verbose then
+                return false, [i-1, i], [L[i-1], L[i]]:
+            else
+                return false:
+            fi:
+        fi:
+    od:
+    return true:
+end:
+
+#Parameters: k, beta_i, gamma_i (i from 1 to k), delta
+#Need gamma_i positive, beta_i nonnegative, delta nonnegative
+#ICs should be slow sequences of length at least max of gammas (if included)
+#Terms can be Conway or regular
+#Order by sum of parameters
+TermsWithSum:=proc(sm::integer, {gammax::extended_numerc:=infinity, includeIC::boolean:=true, includeCN::boolean:=true, nonhomog::boolean:=true, maxk::extended_numeric:=infinity, mink::integer:=1})
+local ret, k, gsum, gammas, betas, delta, mdelta, icsum, ic, icn, mc,mn, mcsum, csum, conway, nonho:
+    ret:=[]:
+    if includeIC then
+        icn:=3:
+    else
+        icn:=2:
+    fi:
+    if includeCN then
+        mc:=2:
+        mn:=1:
+    else
+        mc:=0:
+        mn:=0:
+    fi:
+    #Choose k
+    for k from mink to min(sm/icn, maxk) do
+        #Choose gamma values
+        #Iterate through all partitions of
+        #numbers <=sm-k with k parts
+        for gsum from k to sm-(icn-1)*k do
+            #print(k, gsum):
+            for gammas in PartsExactly(gsum, k, gammax) do
+                #print(gammas):
+                #Choose delta values
+                if nonhomog then
+                    mdelta:=sm-gsum-(icn-1)*k:
+                else
+                    mdelta:=0:
+                fi:
+                for delta from 0 to mdelta do
+                    #Choose conway values
+                    if includeCN then
+                        mcsum:=min(sm-gsum-(icn-1)*k-delta, 2*k):
+                    else
+                        mcsum:=0:
+                    fi:
+                    for csum from 0 to mcsum do
+                        for conway in OrdPartsInclZeroes(csum, k, mc) do
+                            #Choose nh bit
+                            for nonho from 0 to mn do
+                                #Do IC, if necessary
+                                if includeIC then
+                                    for icsum from max(gammas) to sm-gsum-k-delta-csum-nonho do
+                                        for ic in SlowParts(icsum, max(gammas)) do
+                                            #Choose betas
+                                            for betas in OrdPartsInclZeroes(sm-gsum-k-delta-icsum-csum-nonho, k) do
+                                                if CheckBG(betas, gammas) then
+                                                    ret:=[op(ret), [k, betas, gammas, delta, conway, nonho, ic]]:
+                                                fi:
+                                            od:
+                                        od:
+                                    od:
+                                else
+                                    #Choose beta values
+                                    #Iterate through all ordered partitions of
+                                    #sm-gsum-k-delta with k parts
+                                    #BUT, parts where gammas are equal should
+                                    #be in increasing order
+                                    for betas in OrdPartsInclZeroes(sm-gsum-k-delta-csum-nonho, k) do
+                                        if CheckBG(betas, gammas) then
+                                            ret:=[op(ret), [k, betas, gammas, delta, conway, nonho]]:
+                                        fi:
+                                    od:
+                                fi:
+                            od:
+                        od:
+                    od:
+                od:
+            od:
+        od:
+    od:
+    return ret:
+end:
+
+#Make sure L isn't eventually constant or linear
+IsInteresting:=proc(L, nonic:=100, tune:=3/4, perreps:=10)
+local LD, i, j, k, pn, ok:
+    #Difference Sequence
+    LD:=[seq(L[i]-L[i-1], i=2..nops(L))][floor(-nonic*tune)..-1]:
+    for i from 1 to floor(nops(LD)/perreps) do
+        ok:=false:
+        for j from 1 to i do
+            pn:=LD[j]:
+            for k from j+i by i to nops(LD) do
+                if LD[k] <> pn then
+                    ok:=true:
+                    break:
+                fi:
+            od:
+            if ok then
+                break:
+            fi:
+        od:
+        if not(ok) then
+            return false:
+        fi:
+    od:
+    return true:
+end:
+
+#Which ones are slow?
+Slows:=proc(sm::integer, {Q::symbol:=':-Q', n::symbol:=':-n', gammax::extended_numeric:=infinity, inclConsts::boolean:=true, inclConway::boolean:=false, inclForbs::boolean:=false, includeIC::boolean:=false, includeCN::boolean:=false, nonhomog::boolean:=true, maxk::extended_numeric:=infinity, mink::integer:=1, maxones::integer:=1, report::boolean:=true, sample::boolean:=false, terms::integer:=100, verbose::boolean:=false})
+local params, prm, ret, k, betas, gammas, delta, mg, i, conseq, conmax, rec, sq, ones, mo, stret, ic, forbs, TestIC, BuildRec:
+    BuildRec:=proc()
+        if conseq[-1] = 0 then
+            rec:=delta:
+        else
+            rec:=-delta-1:
+        fi:
+        for i from 1 to k do
+            if conseq[i] = 0 then
+                rec:=rec + Q[n-betas[i]-Q[n-gammas[i]]]:
+            elif conseq[i] = 1 then
+                rec:=rec + Q[Q[n-gammas[i]]-betas[i]]:
+            elif conseq[i] = 2 then
+                rec:=rec + Q[Q[n-gammas[i]]+betas[i]+1]:
+            fi:
+        od:
+        #recs:=[op(recs), rec]:
+        
+        #Run the tests
+        forbs:={}:
+        if includeIC then
+            TestIC(ic):
+        else
+            for ones from 0 to mo do
+                for ic in SlowICs(mg+ones) do
+                    #print(ic):
+                    if inclForbs or not(ic in forbs) then
+                        TestIC(ic):
+                    fi:
+                    #print(forbs, conseq):
+                od:
+            od:
+        fi:
+    end:
+    
+    TestIC:=proc(ic) local ones:
+        if inclConway or not(ic in forbs) then
+            sq:=SeqQg(terms+nops(ic), ':-ic'=ic, ':-rec'=rec, ':-nodeath'=true):
+            stret:=rec, ic, sq:
+            if nops(sq) < terms+nops(ic) then
+                if verbose then
+                    print("Died", stret):
+                fi:
+            elif nops(sq) = terms+nops(ic) and IsSlow(sq) then
+                if sq[-1] <> ic[-1] or inclConsts then
+                    if report then
+                        print("Slow", stret):
+                    fi:
+                    if sample then
+                        ret:=[op(ret), [rec, ic, sq]]:
+                    else
+                        ret:=[op(ret), [rec, ic]]:
+                    fi:
+                    if conseq[..k] = [1$k] and not(includeIC) and not(inclForbs) and sq[-1] <> 1 then
+                        for i from 2 to nops(sq) do
+                            if sq[i] = 1 then
+                                forbs:=forbs union {sq[i..i+nops(ic)-1]}:
+                            else
+                                break:
+                            fi:
+                        od:
+                    fi:
+                else
+                    if verbose then
+                        print("Constant", stret):
+                    fi:
+                fi:
+            else
+                if verbose then
+                    print("Not Slow", stret):
+                fi:
+            fi:
+            #print(rec, sprintf("length %d", mg+ones), sq):
+        fi:
+    end:
+    
+    ret:=[]:
+    params:=TermsWithSum(sm, ':-includeIC'=includeIC, ':-includeCN'=includeCN, ':-nonhomog'=nonhomog, ':-maxk'=maxk, ':-mink'=mink):
+    for prm in params do
+        #print(prm):
+        k:=prm[1]:
+        betas:=prm[2]:
+        gammas:=prm[3]:
+        delta:=prm[4]:
+        conseq:=[op(prm[5]), prm[6]]:
+        if includeIC then
+            ic:=prm[7]:
+        fi:
+        mg:=max(gammas):
+        if includeCN then
+            BuildRec():
+        else
+            #recs:=[]:
+            conseq:=[0$k,0]:
+            if inclConway then
+                conmax:=2:
+                mo:=maxones:
+            else
+                conmax:=0:
+                mo:=0:
+            fi:
+            while true do
+                BuildRec():
+                
+                if conseq[-1] = 0 and nonhomog then
+                    conseq[-1]:=1:
+                else
+                    conseq[-1]:=0:
+                    for i from k by -1 to 1 do
+                        if conseq[i] = conmax then
+                            conseq[i]:=0:
+                        else
+                            conseq[i]:=conseq[i]+1:
+                            break:
+                        fi:
+                    od:
+                fi:
+                if conseq = [0$k,0] then
+                    break:
+                fi:
+            od:
+        fi:
+        #if nonhomog then
+        #    recs:=[op(recs), seq(recs[i]-2*delta-1, i=1..nops(recs))]:
+        #fi:
+        #print(prm, recs):
+        #for rec in recs do
+        #    forbs:={}:
+        #    if includeIC then
+        #        TestIC(ic):
+        #    else
+        #        for ones from 0 to mo do
+        #            for ic in SlowICs(mg+ones) do
+        #                #print(ic):
+        #                TestIC(ic):
+        #            od:
+        #        od:
+        #    fi:
+        #od:
+    od:
+    return ret:
+end:
+
+#register(__doc, "NiceWrite(L, [hdr])",
+#    Input::"L: A code, as described by HelpSlow(CODE)",
+#    Input::"hdr: TODO",
+#    Output::"A human-readable form of the recurrence and ",
+#    "possible initial condition coded by L",
+#    Example::["TODO", "returns TODO"]
+#):
+NiceWrite:=proc(L, hdr:="") local ret, i:
+    ret:=hdr:
+    if hdr <> "" then
+        ret:=cat(ret, "\n", seq("_", i=1..length(hdr)), "\n\n"):
+    fi:
+    for i in L do
+        ret:=cat(ret, sprintf("REC: %a\nIC:  %a", i[1], i[2])):
+        if nops(i) = 3 then
+            ret:=cat(ret, sprintf("\nSEQ: %a", i[3])):
+        fi:
+        ret:=cat(ret, "\n\n"):
+    od:
+    return ret:
+end:
+
+#Report levels
+DEF_REP_LEVEL:=0:
+ALL:=7:
+ALIVE:=8:
+INCREASING:=9:
+INCREASING_AND_INTERESTING:=10:
+SLOW:=11:
+SLOW_AND_INTERESTING:=12:
+
+#CODE: [3, [0,1,2], [1,2,3], 0, [0,0,0], 0, [1,1,2]] should work
+
+#Tanny footnote 11, page 5
+
+#Cool:
+#CODE: [3, [0, 0, 0], [1, 2, 3], 0, [0, 0, 0], 0, [1, 1, 2, 3, 4, 5]]
+#REC:  Q[n-Q[n-1]]+Q[n-Q[n-2]]+Q[n-Q[n-3]]
+#IC:   [1, 1, 2, 3, 4, 5]
+
+#Culmination of everything
+#Requires ic inclusion
+register(__doc, "FindSlowSeqs([strt, stp], {allowNonSlow, allowNonSlowIC, betamax, fil, force_k, force_betas, force_gammas, force_delta, force_conway, force_nonho, force_ic:, force_rec, gammax, inclConway, inclFutCon, inclFutHof, inclHof, inclNonhomog, maxCons, minCons, maxk, mink, n, perreps, Q, reportLevel, sample, silent, store, terms_factor, tune, useFirst, verbose})",
+    Input::"strt: an integer or list indicating where to start ",
+    "the search for slow sequences.  The integer denotes a ",
+    "total weight of an exhaustive code for Hofstadter-like ",
+    "sequences.  The list is a starting code itself. ",
+    "(default is 0)",
+    Input::"stp: an integer or list indicating where to stop ",
+    "the search for slow sequences.  The integer denotes a ",
+    "total weight of an exhaustive code for Hofstadter-like ",
+    "sequences.  The list is an ending code itself. ",
+    "(default is infinity, meaning run forever)",
+    Input::"allowNonSlow: still report about a sequence, ",
+    "even if it is not slow? (default is false)",
+    Input::"allowNonSlowIC: consider non-slow initial ",
+    "conditions? (default is false)",
+    Input::"betamax: an integer denoting the largest value ",
+    " for betas in the general forms of expressions ",
+    "(see HelpSlow(CODE)) (default is infinity)",
+    Input::"fil: file name or descriptor for where results ",
+    "are to be output (default is terminal)",
+    Input::"force_k: force a specific value of k? (see ",
+    "HelpSlow(CODE)) (default is NULL, meaning don't force)",
+    Input::"force_betas: force a specific list of beta values? (see ",
+    "HelpSlow(CODE)) (default is NULL, meaning don't force)",
+    Input::"force_gammas: force a specific list of gamma values? (see ",
+    "HelpSlow(CODE)) (default is NULL, meaning don't force)",
+    Input::"force_delta: force a specific delta value? (see ",
+    "HelpSlow(CODE)) (default is NULL, meaning don't force)",
+    Input::"force_conway: force a specific format (a list) for ",
+    "which terms are Conway-like? (see ",
+    "HelpSlow(CODE)) (default is NULL, meaning don't force)",
+    Input::"force_nonho: force nonhomogeneous terms to be nonnegative? (see ",
+    "HelpSlow(CODE)) (default is NULL, which is equivalent to 0)",
+    Input::"force_ic: force a specific initial condition list? (see ",
+    "HelpSlow(CODE)) (default is NULL, meaning don't force)",
+    Input::"force_rec: force a specific recurrence? ",
+    "(format described by nicehof.txt) ",
+    "(default is NULL, meaning don't force). This overrides ",
+    "the preceding \"force\" parameters, other than force_ic.",
+    Input::"gammax: an integer denoting the largest value ",
+    " for gammas in the general forms of expressions ",
+    "(see HelpSlow(CODE)) (default is infinity)",
+    Input::"inclConway: include Conway-like terms? ",
+    "(see HelpSlow(CODE)) (default is true)",
+    Input::"inclFutCon: include Conway-like terms that look into the future? ",
+    "(see HelpSlow(CODE)) (default is true)",
+    Input::"inclFutHof: include Hofstadter-like terms that look into the future? ",
+    "(see HelpSlow(CODE)) (default is true)",
+    Input::"inclHof: include Hofstadter-like terms? ",
+    "(see HelpSlow(CODE)) (default is true)",
+    Input::"inclNonhomog: include non-homogeneous recurrences? ",
+    "(see HelpSlow(CODE)) (default is true)",
+    Input::"maxCons: maximum number of Conway-like terms ",
+    "(see HelpSlow(CODE)) (default is infinity)",
+    Input::"minCons: minimum number of Conway-like terms ",
+    "(see HelpSlow(CODE)) (default is 0)",
+    Input::"maxk: maximum value of k ",
+    "(see HelpSlow(CODE)) (default is infinity)",
+    Input::"mink: minimum value of k ",
+    "(see HelpSlow(CODE)) (default is infinity)",
+    Input::"n: a symbol to use for the index in ",
+    "the recurrences (default is n)",
+    Input::"perreps: an integer technical parameter that ",
+    "specifies how many terms to generate to check for ",
+    "slowness/non-constant-ness (default is 10)",
+    Input::"Q: a symbol to use for the recurrences (default is Q)",
+    Input::"reportLevel: one of DEF_REP_LEVEL, ALL, ALIVE, ",
+    "INCREASING, INCREASING_AND_INTERESTING, SLOW, ",
+    "SLOW_AND_INTERESTING indicating which types of sequences ",
+    "to output. A sequence is interesting if it is not ",
+    "eventually constant.  (default is DEF_REP_LEVEL, meaning ",
+    "default level, which is SLOW_AND_INTERESTING or ",
+    "INCREASING_AND_INTERESTING, depending on whether ",
+    "allowNonSlow is true or false)",
+    Input::"sample: include sample terms in the output? ",
+    "(default is true)",
+    Input::"silent: should we not actually output the output? ",
+    "(default is false)",
+    Input::"store: store the output and also return it in Maple ",
+    "format? (default is true)",
+    Input::"terms_factor: how many terms to generate of sequences. ",
+    "Generate terms_factor*nops(ic) terms. (default is 41)",
+    Input::"tune: a technical parameter related to checking ",
+    "whether the sequence is eventually constant (default is 3/4)",
+    Input::"useFirst: Use strt as first, if it's a list? ",
+    "Might not want to, as it might be the last one you ",
+    "already checked. In that case, use its successor first. ",
+    "(default is false)",
+    Input::"verbose: should we also output the output to ",
+    "terminal? Also, should we print some other stuff? ",
+    "(default is true)",
+    Output::"All the seemingly slow sequences (or whatever ",
+    "reporting level was specified) in the search space. ",
+    "If the search space was infinite, it will run forever. ",
+    "The output is written to fil, and, if store was true, it ",
+    "is also returned in Maple format.",
+    Example::["0, 4, verbose=false", "outputs:\nCODE: [1, [0], [1], 1, [0], 0, [1]]\nREC:  1+Q[n-Q[n-1]]\nIC:   [1]\nSEQ:  [1, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9]\nSlow and Interesting\nand returns [[[1, [0], [1], 1, [0], 0, [1]], [1+Q[n-Q[n-1]], [1], [1, 2, 2, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9]]]]"],
+    Example::["5, 8, verbose=false, minCons=1", "outputs three sequences and returns [[[2, [0, 0], [1, 1], 0, [0, 1], 0, [1, 1]], [Q[n-Q[n-1]]+Q[Q[n-1]], [1, 1], [1, 1, 2, 2, 3, 4, 4, 4, 5, 6, 7, 7, 8, 8, 8, 8, 9, 10, 11, 12, 12, 13, 14, 14, 15, 15, 15, 16, 16, 16, 16, 16, 17, 18, 19, 20, 21, 21, 22, 23, 24, 24, 25, 26, 26, 27, 27, 27, 28, 29, 29, 30, 30, 30, 31, 31, 31, 31, 32, 32, 32, 32, 32, 32, 33, 34, 35, 36, 37, 38, 38, 39, 40, 41, 42, 42, 43, 44, 45, 45, 46, 47]]], [[2, [1, 0], [1, 1], 0, [0, 1], 0, [1, 1]], [Q[n-1-Q[n-1]]+Q[Q[n-1]], [1, 1], [1, 1, 2, 2, 2, 3, 4, 4, 4, 4, 5, 5, 6, 7, 8, 8, 8, 8, 8, 9, 9, 9, 10, 10, 11, 12, 12, 13, 14, 15, 16, 16, 16, 16, 16, 16, 17, 17, 17, 17, 18, 18, 18, 19, 19, 20, 21, 21, 21, 22, 22, 23, 24, 24, 25, 26, 27, 27, 28, 29, 30, 31, 32, 32, 32, 32, 32, 32, 32, 33, 33, 33, 33, 33, 34, 34, 34, 34, 35, 35, 35, 36]]], [[2, [0, 0], [1, 1], 0, [0, 1], 0, [1, 1, 1]], [Q[n-Q[n-1]]+Q[Q[n-1]], [1, 1, 1], [1, 1, 1, 2, 2, 3, 3, 3, 4, 5, 5, 5, 5, 6, 7, 7, 8, 8, 8, 8, 8, 9, 10, 11, 11, 12, 12, 12, 13, 13, 13, 13, 13, 13, 14, 15, 16, 16, 17, 18, 18, 19, 19, 19, 20, 20, 20, 20, 21, 21, 21, 21, 21, 21, 21, 22, 23, 24, 25, 25, 26, 27, 27, 28, 28, 28, 29, 30, 30, 31, 31, 31, 32, 32, 32, 32, 33, 33, 33, 33, 33, 34, 34, 34, 34, 34, 34, 34, 34, 35, 36, 37, 38, 38, 39, 40, 41, 41, 42, 43, 43, 44, 44, 44, 45, 46, 46, 47, 47, 47, 48, 48, 48, 48, 49, 50, 50, 51, 51, 51, 52, 52, 52]]]]"]
+    #Output::"The first terms terms of the sequence with initial ",
+    #Example::["5, 20", "returns [4, N, 5, 5, N, 4, 5, 10, 10, N, 4, 10, 15, 5, N, 4, 15, 10, 15, 2*N], {17 <= N}"]
+):
+FindSlowSeqs:=proc(strt::Or(integer, list):=0, stp::Or(integer, list):=infinity, {allowNonSlow::boolean:=false, allowNonSlowIC::boolean:=false, betamax::extended_numeric:=infinity, fil:=terminal, force_k:=NULL, force_betas:=NULL, force_gammas:=NULL, force_delta:=NULL, force_conway:=NULL, force_nonho:=NULL, force_ic:=NULL, force_rec:=NULL, gammax::extended_numeric:=infinity, inclConway::boolean:=true, inclFutCon::boolean:=true, inclFutHof::boolean:=true, inclHof::boolean:=true, inclNonhomog::boolean:=true, maxCons::extended_numeric:=infinity, minCons::integer:=0, maxk::extended_numeric:=infinity, mink::integer:=1, n::symbol:=':-n', perreps::integer:=10, Q::symbol:=':-Q', reportLevel::integer:=DEF_REP_LEVEL, sample::boolean:=true, silent::boolean:=false, store::boolean:=true, terms_factor::integer:=41, tune:=3/4, useFirst::boolean:=false, verbose::boolean:=true})
+description "Look for slow sequences with the given parameters":
+local ret, k, betas, gammas, delta, conway, nonho, ic, sm, startsum, specialstart, stopsum, specialstop, rex, rec, over, gsum, csum, icsum, level,
+Process_k, Process_betas, Process_gammas, Process_delta, Process_conway, Process_nonho, Process_ic, Process_ic_rec,
+Proceed, BuildRec, Test:
+    #Analyzing Helpers
+    Test:=proc() local sq, stret, RetVal, terms, died, notincr, notslow, nexterm, rrec:
+        #Return value
+        RetVal:=proc(msg) local L, ret:
+            if sample then
+                L:=[rec, ic, sq]:
+            else
+                L:=[rec, ic]:
+            fi:
+            #print(rex):
+            ret:=sprintf("CODE: %a\n", rex):
+            ret:=cat(ret, sprintf("REC:  %a\nIC:   %a", L[1], L[2])):
+            if sample then
+                ret:=cat(ret, sprintf("\nSEQ:  %a", L[3])):
+            fi:
+            ret:=cat(ret, "\n\n"):
+            if verbose and fil = terminal then
+                ret:=cat(ret[..-2], msg, "\n\n"):
+            fi:
+            if not(silent) then
+                fprintf(fil, "%s", ret):
+            fi:
+            if verbose and fil <> terminal then
+                printf("%s%s\n\n", ret[..-2], msg):
+            fi:
+            return L:
+        end:
+        rrec:=CompileRec(rec, ':-Q'=Q, ':-n'=n):
+        if force_rec = NULL then
+            terms:=max(nops(ic), max(betas), max(gammas))*terms_factor:
+        else
+            terms:=nops(ic)*terms_factor:
+        fi:
+        #sq:=SeqQg(terms, ':-ic'=ic, ':-rec'=rec, ':-failure'=true):
+        sq:=ic:
+        died:=false:
+        notincr:=false:
+        notslow:=false:
+        while nops(sq) < terms do
+            nexterm:=Qg(nops(sq)+1, ':-ic'=ic, ':-rec'=rrec, ':-failure'=true):
+            if nexterm = FAIL then
+                died:=true:
+                break:
+            elif nexterm - sq[-1] < 0 then
+                notincr:=true:
+                sq:=[op(sq), nexterm]:
+                break:
+            elif not(allowNonSlow) and nexterm - sq[-1] > 1 then
+                notslow:=true:
+                sq:=[op(sq), nexterm]:
+                break:
+            else
+                sq:=[op(sq), nexterm]:
+            fi:
+        od:
+        #if nops(sq) < terms then
+        if died then
+            if level <= ALL then
+                return RetVal("Died"):
+            fi:
+        #elif nops(sq) = terms and IsSlow(sq) then
+        elif notincr then
+            if level <= ALIVE then
+                return RetVal("Not increasing"):
+            fi:
+        elif notslow then
+            if level <= ALIVE then
+                return RetVal("Not slow"):
+            fi:
+        elif allowNonSlow then
+            if level <= INCREASING then
+                return RetVal("Increasing"):
+            elif level <= INCREASING_AND_INTERESTING then
+                if IsInteresting(sq, terms-nops(ic), tune, perreps) then
+                    return RetVal("Increasing and Interesting"):
+                fi:
+            fi: 
+        else
+            if level <= SLOW then
+                return RetVal("Slow"):
+            elif level <= SLOW_AND_INTERESTING then
+                if IsInteresting(sq, terms-nops(ic), tune, perreps) then
+                    return RetVal("Slow and Interesting"):
+                fi:
+            fi:                    
+        #else
+        #    if level <= ALIVE then
+        #        return RetVal():
+        #    fi:
+        fi:
+    end:
+    
+    BuildRec:=proc() local i:
+        if nonho = 0 then
+            rec:=delta:
+        else
+            rec:=-delta-1:
+        fi:
+        for i from 1 to k do
+            if conway[i] = 0 then
+                rec:=rec + Q[n-betas[i]-Q[n-gammas[i]]]:
+            elif conway[i] = 2 then
+                rec:=rec + Q[n+betas[i]+1-Q[n-gammas[i]]]:
+            elif conway[i] = 1 then
+                rec:=rec + Q[Q[n-gammas[i]]-betas[i]]:
+            elif conway[i] = 3 then
+                rec:=rec + Q[Q[n-gammas[i]]+betas[i]+1]:
+            fi:
+        od:
+        
+        return Test():
+    end:
+    
+    Proceed:=proc(forcerec:=false) local rb:
+        if forcerec then
+            rb:=Test():
+        else
+            rex:=[k, betas, gammas, delta, conway, nonho, ic]:
+            rb:=BuildRec():
+        fi:
+        #Yay! Side effects!
+        if store and rb <> NULL then
+            ret:=[op(ret), [rex, rb]]:
+        fi:
+        if specialstop and rex = stp then
+            over:=true:
+            return:
+        fi:
+    end:
+    
+    #Building Helpers
+    Process_betas:=proc() local ok, i:
+        if force_betas = NULL then
+            ok:=not(specialstart):
+            
+            #Do the betas
+            for betas in OrdPartsInclZeroes(sm-gsum-k-delta-icsum-csum-nonho, k, betamax) do
+                if not(ok) then
+                    ok:=evalb(betas = strt[2]):
+                fi:
+                if ok then
+                    if specialstart and not(useFirst) then
+                        #Skip the first one, since it's presumably the
+                        #last one in our file and we don't want to
+                        #repeat it
+                        specialstart:=false:
+                    else
+                        specialstart:=false:
+                        if CheckBG(betas, [seq([gammas[i], conway[i]], i=1..k)]) then
+                            Proceed():
+                        fi:
+                    fi:
+                fi:
+            od:
+        else
+            betas:=force_betas:
+            Proceed():
+        fi:
+    end:
+    
+    Process_ic_rec:=proc() local ok, sicsum, pfn:
+        if force_ic = NULL then
+            if specialstart then
+                ok:=false:
+                sicsum:=convert(strt[7], `+`):
+            else
+                ok:=true:
+                sicsum:=1:
+            fi:
+            if allowNonSlowIC then
+                pfn:=Parts:
+            else
+                pfn:=SlowParts:
+            fi:
+            #Build IC
+            for icsum from sicsum to infinity do
+                for ic in pfn(icsum, 1) do
+                    if not(ok) then
+                        ok:=evalb(ic = strt[7]):
+                    fi:
+                    if ok then
+                        Proceed(true):
+                        if over then
+                            return:
+                        fi:
+                    fi:
+                od:
+            od:
+        else
+            ic:=force_ic:
+            Proceed(true):
+        fi:
+    end:
+    
+    Process_ic:=proc() local ok, sicsum, pfn:
+        if force_ic = NULL then
+            if specialstart then
+                ok:=false:
+                sicsum:=convert(strt[7], `+`):
+            else
+                ok:=true:
+                sicsum:=k:
+            fi:
+            if allowNonSlowIC then
+                pfn:=Parts:
+            else
+                pfn:=SlowParts:
+            fi:
+            #Build IC
+            for icsum from max(gammas) to sm-gsum-k-delta-csum-nonho do
+                for ic in pfn(icsum, max(gammas)) do
+                    if not(ok) then
+                        ok:=evalb(ic = strt[7]):
+                    fi:
+                    if ok then
+                        Process_betas():
+                        if over then
+                            return:
+                        fi:
+                    fi:
+                od:
+            od:
+        else
+            ic:=force_ic:
+            Process_betas():
+        fi:
+    end:
+    
+    Process_nonho:=proc() local sn, mn:
+        if force_nonho = NULL then
+            if specialstart then
+                sn:=strt[6]:
+            else
+                sn:=0:
+            fi:
+            #Choose nonho values
+            if inclNonhomog then
+                mn:=1:
+            else
+                mn:=0:
+            fi:
+            for nonho from sn to mn do
+                Process_ic():
+                if over then
+                    return:
+                fi:
+            od:
+        else
+            nonho:=force_nonho:
+            Process_ic():
+        fi:
+    end:
+    
+    Process_conway:=proc() local ok, scsum, mcsum, cset, i, reqs:
+        if force_conway = NULL then
+            if specialstart then
+                ok:=false:
+                scsum:=convert(strt[5], `+`):
+            else
+                ok:=true:
+                scsum:=0:
+            fi:
+            #Choose conway values
+            cset:={}:
+            if inclHof then
+                #minc:=0:
+                cset:=cset union {0}:
+                if inclFutHof then
+                    cset:=cset union {2}:
+                fi:
+            else
+                #minc:=1:
+                scsum:=max(scsum, 2*k):
+            fi:
+            if inclConway then
+                mcsum:=min(sm-gsum-2*k-delta, 2*k):
+                #mc:=2:
+                cset:=cset union {1}:
+                if inclFutCon then
+                    cset:=cset union {3}:
+                fi:
+            else
+                mcsum:=0:
+                #mc:=0:
+            fi:
+            reqs:=[[{1,3}, {seq(i, i=max(0, minCons)..min(k, maxCons))}]]:
+            for csum from scsum to mcsum do
+                for conway in OrdPartsSet(csum, k, cset, reqs) do
+                    if not(ok) then
+                        ok:=evalb(conway = strt[5]):
+                    fi:
+                    if ok then
+                        if CheckBG(conway, gammas) then
+                            Process_nonho():
+                            if over then
+                                return:
+                            fi:
+                        fi:
+                    fi:
+                od:
+            od:
+        else
+            conway:=force_conway:
+            csum:=convert(conway, `+`):
+            Process_nonho():
+        fi:
+    end:
+    
+    Process_delta:=proc() local sdelta, mdelta:
+        if force_delta = NULL then
+            if specialstart then
+                sdelta:=strt[4]:
+            else
+                sdelta:=0:
+            fi:
+            #Choose delta values
+            if inclNonhomog then
+                mdelta:=sm-gsum-2*k:
+            else
+                mdelta:=0:
+            fi:
+            for delta from sdelta to mdelta do
+                Process_conway():
+                if over then
+                    return:
+                fi:
+            od:
+        else
+            delta:=force_delta:
+            Process_conway():
+        fi:
+    end:
+    
+    Process_gammas:=proc() local ok, sgsum:
+        if force_gammas = NULL then
+            if specialstart then
+                ok:=false:
+                sgsum:=convert(strt[3], `+`):
+            else
+                ok:=true:
+                sgsum:=k:
+            fi:
+            #Choose gamma values
+            #Iterate through all partitions of
+            #numbers <=sm-k with k parts
+            for gsum from sgsum to sm-2*k do
+                for gammas in PartsExactly(gsum, k, gammax) do
+                    if not(ok) then
+                        ok:=evalb(gammas = strt[3]):
+                    fi:
+                    if ok then
+                        Process_delta():
+                        if over then
+                            return:
+                        fi:
+                    fi:
+                od:
+            od:
+        else
+            gammas:=force_gammas:
+            gsum:=convert(force_gammas, `+`):
+            Process_delta():
+        fi:
+    end:
+    
+    Process_k:=proc() local strtk, endk:
+        if specialstart then
+            strtk:=strt[1]:
+        else
+            strtk:=mink:
+        fi:
+        #Choose k
+        if force_k <> NULL then
+            strtk:=force_k:
+            endk:=force_k:
+        elif force_gammas <> NULL then
+            strtk:=nops(force_gammas):
+            endk:=nops(force_gammas):
+        elif force_betas <> NULL then
+            strtk:=nops(force_betas):
+            endk:=nops(force_betas):
+        elif force_nonho <> NULL then
+            strtk:=nops(force_nonho):
+            endk:=nops(force_nonho):
+        elif force_conway <> NULL then
+            strtk:=nops(force_conway):
+            endk:=nops(force_conway):
+        else
+            endk:=min(sm/3, maxk):
+        fi:
+        for k from strtk to endk do
+            Process_gammas():
+            if over then
+                return:
+            fi:
+        od:
+    end:
+    
+    ret:=[]:
+    #Is our start special?
+    if type(strt, list) then
+        startsum:=convert(ListTools[Flatten](strt), `+`):
+        specialstart:=true:
+    else
+        startsum:=strt:
+        specialstart:=false:
+    fi:
+    #Is our end special?
+    if type(stp, list) then
+        stopsum:=convert(ListTools[Flatten](stp), `+`):
+        specialstop:=true:
+    else
+        stopsum:=stp:
+        specialstop:=false:
+    fi:
+    over:=false:
+    
+    #Level?
+    if reportLevel = DEF_REP_LEVEL then
+        if allowNonSlow then
+            level:=INCREASING_AND_INTERESTING:
+        else
+            level:=SLOW_AND_INTERESTING:
+        fi:
+    else
+        level:=reportLevel:
+    fi:
+    
+    #Did we pass a recurrence?
+    if force_rec = NULL then    
+        #Iterate through sums
+        for sm from startsum to stopsum do
+            if verbose then
+                printf("sum = %d\n", sm):
+            fi:
+            Process_k():
+        od:
+    else
+        rec:=force_rec:
+        rex:=rec:
+        Process_ic_rec():
+    fi:
+    
+    #Were we supposed to store and return the things?
+    if store then
+        return ret:
+    fi:
+end:
+
+HasSlowIncr:=proc(rec, tune:=50) local i, j, L, sq, ic:
+    for i from 1 to infinity do
+        L:=[seq(j, j=1..i)]:
+        sq:=SeqQg(i+1, ':-ic'=L, ':-rec'=rec, ':-failure'=true):
+        if nops(sq) > i then
+            ic:=[seq(j, j=1..max(sq[i+1]-1, i))]:
+            #sq:=SeqQg(tune*nops(ic), ':-ic'=ic, ':-rec'=rec, ':-failure'=true):
+            #print(sq, ic):
+            sq:=ic:
+            while sq[-1] <> FAIL and nops(sq) < tune*nops(ic) do
+                sq:=[op(sq), Qg(nops(sq)+1, ':-ic'=ic, ':-rec'=rec, ':-failure'=true)]:
+            od:
+            if sq[-1] <> FAIL and IsSlow(sq) then
+                return ic:
+            else
+                return false:
+            fi:
+        fi:
+    od:
+end:
+
+SearchForSlowIncr:=proc(terms, cap, tune:=50, {verbose:=true})
+local C, L, i, ret, hsi:
+    C:=firstcomb(cap+terms-1, terms):
+    ret:={}:
+    while C <> FAIL do
+        #print(C):
+        L:=[seq(C[i]-i+1, i=1..terms)]:
+        if verbose then
+            print(L):
+        fi:
+        hsi:=HasSlowIncr(GetRec(':-refs'=L), 50):
+        if hsi <> false then
+            print("FOUND ONE!"):
+            ret:=ret union {[L, hsi]}:
+        fi:
+        C:=nextcomb(C, cap+terms-1):
+    od:
+    return ret:
+end:
+
+FindRepeats:=proc(L, notmods:=[]) local i, val, notmod, ok, ret, lastval:
+    ret:={}:
+    lastval:=L[1]:
+    for i from 2 to nops(L) do
+        val:=L[i]:
+        if val = lastval then
+            ok:=true:
+            for notmod in notmods do
+                if val mod notmod[2] = notmod[1] mod notmod[2] then
+                    ok:=false:
+                    break:
+                fi:
+            od:
+            if ok then
+                ret:=ret union {val}:
+            fi:
+        fi:
+        lastval:=val:
+    od:
+    return convert(ret, list):
+end:
+
+FindRepeatIndices:=proc(L, notmods:=[]) local i, val, notmod, ok, ret, lastval:
+    ret:={}:
+    lastval:=L[1]:
+    for i from 2 to nops(L) do
+        val:=L[i]:
+        if val = lastval then
+            ok:=true:
+            for notmod in notmods do
+                if val mod notmod[2] = notmod[1] mod notmod[2] then
+                    ok:=false:
+                    break:
+                fi:
+            od:
+            if ok then
+                ret:=ret union {i}:
+            fi:
+        fi:
+        lastval:=val:
+    od:
+    return convert(ret, list):
+end:
+
+FirstDiffs:=proc(L) local i:
+    return [seq(L[i]-L[i-1], i=2..nops(L))]:
+end:
+
+sumtop:=proc(m)
+    return floor(1+log[3]((2*m-3)/5)):
+end:
+
+RepsBeforei:=proc(m, i)
+    return floor((m-5/2*3^(i-1)-3/2)/3^i):
+end:
+
+RepsBeforeiNoFloor:=proc(m, i)
+    return (m-5/2*3^(i-1)-3/2)/3^i:
+end:
+
+RepsBefore:=proc(m) local i:
+    if m < 2 then
+        return 0:
+    fi:
+    return add(RepsBeforei(m, i), i=1..sumtop(m)):
+end:
+
+VFreqSeq:=proc(m) local i, j, ct, L, ret:
+    L:=SeqQg(2*m, ic=[1,2,3,4], rec=Q[n-Q[n-1]]+Q[n-Q[n-4]]):
+    ret:=[]:
+    j:=1:
+    for i from 1 to m do
+        ct:=0:
+        while L[j] = i do
+            j:=j+1:
+            ct:=ct+1:
+        od:
+        ret:=[op(ret), ct]:
+    od:
+    return ret:
+end:
+
+VCumFreqSeq:=proc(m) local L, i, ret:
+    L:=VFreqSeq(m):
+    ret:=[0,0]:
+    for i from 2 to nops(L) do
+        ret:=[op(ret), ret[-1] + L[i]-1]:
+    od:
+    return ret:
+end:
+
+OddThrees:=proc(L) local ret, i:
+    ret:=[]:
+    for i from 1 by 2 to nops(L) do
+        if L[i] = 3 then
+            ret:=[op(ret), i]:
+        fi:
+    od:
+    return ret:
+end:
+
+#################################################
+
+#Help procedure
+HelpSlow:=proc() local ret:
+    if _passed = CODE then
+        #ret:="List of Important Constants":
+        #ret:=cat(ret, "\n    HOF: Hofstadter's recurrence Q(n)=Q(n-Q(n-1))+Q(n-Q(n-2))"):
+        #ret:=cat(ret, "\n    TRI_HOF: Recurrence Q(n)=Q(n-Q(n-1))+Q(n-Q(n-2))+Q(n-Q(n-3))"):
+        #ret:=cat(ret, "\n    QUAD_HOF: Recurrence Q(n)=Q(n-Q(n-1))+Q(n-Q(n-2))+Q(n-Q(n-3))+Q(n-Q(n-4))"):
+        #ret:=cat(ret, "\n    CONWAY: Hofstadter-Conway recurrence Q(n)=Q(Q(n-1))+Q(n-Q(n-1))"):
+        #printf("%s\n", ret):
+        printf("%s\n", cat(
+            "Recurrences (and optionally initial conditions also ",
+            "are encoded as lists of nonnegative integers. This ",
+            "is done bijectively, so that we can enumerate all ",
+            "recurrences and iterate through them. They are ",
+            "sorted by total sum of the numbers in their code ",
+            "list. A code list is of the form ",
+            "[k, betas, gammas, delta, cons, nonho, ic]:\n",
+            "\tk: number of terms in the recurrence\n",
+            "\tbetas: list of length k. Positive integers describing ",
+            "\"shifts\" in each term. (Negative shifts dealt with by cons.)\n",
+            "\tgammas: list of length k. Integers describing ",
+            "how far back to go. In other words, offsets in ",
+            "inner recursive calls.\n",
+            "\tdelta: nonhomogeneous additional term.  A ",
+            "positive integer (negative nonhomogeneous terms dealt with by nonho)\n",
+            "\tcons: list of length k of only 0, 1, 2, 3:\n",
+            "\t\t0: Hofstadter-like term in this position.\n",
+            "\t\t1: Conway-like term in this position.\n",
+            "\t\t2: Hofstadter-like term in this position, and ",
+            "use -beta-1 in place of corresponding beta.\n",
+            "\t\t3: Conway-like term in this position, and ",
+            "use -beta-1 in place of corresponding beta.\n",
+            "\tnonho: 0 or 1. If 1, use -delta-1 in place ",
+            "of delta.\n",
+            "\tic: An initial condition of arbitrary length."
+        )):
+    else
+        getHelp(__doc)(_passed):
+    fi:
+end:

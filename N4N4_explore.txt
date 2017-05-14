@@ -1,0 +1,656 @@
+##################################################################
+##N4N4_explore.txt: This file is made to accompany Chapter 10    #
+##of Nathan Fox's doctoral thesis.                               #
+##                                                               #
+##Save this file as N4N4_explore.txt                             #
+##To use it, stay in the                                         #
+##same directory, start Maple (by typing: maple <Enter> )        #
+##and then type:  read N4N4_explore.txt <Enter>                  #
+##                                                               #
+##This file depends on mapledoc.txt, nonstdhof.txt, and          #
+##ProveHof1thruN.txt, which can be found in the same online      #
+#directory as this file                                          #
+##                                                               #
+##Written by Nathan Fox, Rutgers University,                     #
+##fox at math dot rutgers dot edu                                #
+##Version 1.0.0                                                  #
+##################################################################
+
+#read(`nonstdhof.txt`): with(NonStdHof):
+read(`ProveHof1thruN.txt`):
+
+printf("%s\n\n%s\n\n%s@math.rutgers.edu\n\n%s\n\n%s\n%s\n%s\n%s\n",
+    "This is N4N4_explore.txt",
+    "It accompanies Chapter 10 of \"An Exploration of Nested Recurrences Using Experimental Mathematics\" by Nathan Fox",
+    "Please report bugs to fox",
+    "The most current version of this package is available from",
+    "http://github.com/nhf216/thesis/N4N4_explore.txt",
+    "For a list of the procedures in this package, along with their usage, type HelpN4N4();.",
+    "For help with a specific procedure, type HelpN4N4(procedure_name);.",
+    "For a brief description of a specific procedure, type Describe(procedure_name);."):
+
+#mapledoc
+Input:=':-Input':
+Output:=':-Output':
+Note:=':-Note':
+__doc:=DocManager():
+
+register(__doc, "N4N4_explore(Nmod256, {N, icsym, verbose, terms, dirc})",
+    Input::"Nmod256: a positive integer specifying the ",
+    "value of N mod 256",
+    Input::"N: The symbol to use for N (default is N)",
+    Input::"icsym: A symbol to use as icsym in nonstdhof.txt ",
+    "(default is k)",
+    Input::"verbose: print out extra stuff? ",
+    "(default is false)",
+    Input::"terms: A positive integer, a tuning parameter specifying ",
+    "how many terms to generate when calling ProveLongTermEventualSolution ",
+    "as a subroutine (default is 3000)",
+    Input::"dirc: a string specifying the directory ",
+    "for the output files (default is seqs)",
+    Output::"A completion of the proof of the portion of Case 3 or ",
+    "Case 4 of Theorem 10.6 for the given N congruence. ",
+    "Write relevant info to a file as it runs."
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+N4N4_explore:=proc(Nmod256, {N:=':-N', icsym:=':-k', verbose:=true, terms:=3000, dirc:="seqs"})
+description "Explore initial condition [N,4,N,4] when N is congruent to Nmod256 mod 256":
+local sol, fl:
+    sol:=ProveLongTermEventualSolution([[1..4, [N,4,N,4], []]], ':-icsym'=icsym, lmin=terms, bigsymbols=[N], bigsymbolmods={[N,Nmod256,256]}, ':-verbose'=verbose, interjectText=sprintf("Working on %d mod 256", Nmod256)):
+    fl:=sprintf("%s/N4N4_%d_256.txt", dirc, Nmod256):
+    fprintf(fl, "%a\n%a\n", sol):
+    fclose(fl):
+    return sol:
+end:
+
+register(__doc, "N4N4_explore_start(Nmod256, {N, icsym, verbose, terms, dirc})",
+    Input::"Nmod256: a positive integer specifying the first ",
+    "value of N mod 256",
+    Input::"N: The symbol to use for N (default is N)",
+    Input::"icsym: A symbol to use as icsym in nonstdhof.txt ",
+    "(default is k)",
+    Input::"verbose: print out extra stuff? ",
+    "(default is false)",
+    Input::"terms: A positive integer, a tuning parameter specifying ",
+    "how many terms to generate when calling ProveLongTermEventualSolution ",
+    "as a subroutine (default is 3000)",
+    Input::"dirc: a string specifying the directory ",
+    "for the output files (default is seqs)",
+    Output::"Runs N4N4_explore on all the Nmod256 values ",
+    "congruent to 2 mod 4 from Nmod256 through 254"
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+N4N4_explore_start:=proc(Nmod256, {N:=':-N', icsym:=':-k', verbose:=true, terms:=3000, dirc:="seqs"})
+description "Explore initial condition [N,4,N,4] when N is congruent to Nmod256 mod 256 and higher values congruent to 2 mod 4":
+local i:
+    for i from Nmod256 by 4 to 256 do
+        printf("Working on %d\n\n", i):
+        N4N4_explore(i, ':-N'=N, ':-icsym'=icsym, ':-verbose'=verbose, ':-terms'=terms, ':-dirc'=dirc):
+    od:
+end:
+
+register(__doc, "N4N4_explore_S(S, {N, icsym, verbose, terms, dirc})",
+    Input::"S: a set of positive integers specifying the ",
+    "values of N mod 256 to test",
+    Input::"N: The symbol to use for N (default is N)",
+    Input::"icsym: A symbol to use as icsym in nonstdhof.txt ",
+    "(default is k)",
+    Input::"verbose: print out extra stuff? ",
+    "(default is false)",
+    Input::"terms: A positive integer, a tuning parameter specifying ",
+    "how many terms to generate when calling ProveLongTermEventualSolution ",
+    "as a subroutine (default is 3000)",
+    Input::"dirc: a string specifying the directory ",
+    "for the output files (default is seqs)",
+    Output::"Runs N4N4_explore on all the Nmod256 values ",
+    "in S"
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+N4N4_explore_S:=proc(S, {N:=':-N', icsym:=':-k', verbose:=true, terms:=3000, dirc:="seqs"})
+description "Explore initial condition [N,4,N,4] when N is congruent mod 256 to each value in S (in turn)":
+local i:
+    for i in S do
+        printf("Working on %d\n\n", i):
+        N4N4_explore(i, ':-N'=N, ':-icsym'=icsym, ':-verbose'=verbose, ':-terms'=terms, ':-dirc'=dirc):
+    od:
+end:
+
+N4N4_extract_theorem:=proc() local i, fil, L, ineq, ret:
+    ret:=[]:
+    for i from 2 by 4 to 256 do
+        fil:=fopen(sprintf("seqs/N4N4_%d_256.txt", i), READ):
+        L:=parse(readline(fil)):
+        ineq:=parse(readline(fil)):
+        fclose(fil):
+        ret:=[op(ret), [i, op(2, L[-1][1]), op(ineq)]]:
+    od:
+    return ret:
+end:
+
+N4N4_reformat:=proc(Nmod256, {tex:=false, renormalize:=true, compress:=false, startpiece:=1, endpiece:=infinity, expd:=true, Q:="Q"})
+local fil, L, ret, N, k, i, j, idx, Expand, Format, Renormalize, Compress, NormIndex, Sort, prd, m:
+    Sort:=proc(expr, mixing) local expr2, wd, arr, lt, d, pc:
+        #TODO sort by N then by powers of k
+        if mixing then
+            #return sprintf("%a", expr):
+            if indets(expr) = {} then
+                if tex then
+                    return latex(expr, output=string):
+                else
+                    return sprintf("%a", expr):
+                fi:
+            fi:
+            expr2:=expr:
+            d:=degree(expr, N):
+            if d <= 0 then
+                d:=1:
+            fi:
+            wd:=wdeg([d+1, 1], [k, N]):
+            arr:=Array([]):
+            while expr2 <> 0 do
+                lt:=Groebner[LeadingTerm](expr2, wd):
+                #lt:=lt[1]*lt[2]:
+                expr2:=expr2-lt[1]*lt[2]:
+                if tex then
+                    #arr(ArrayNumElems(arr)+1):=latex(sort(lt, [N,k]), output=string):
+                    if lt[1] = 1 then
+                        pc:="":
+                    elif lt[1] = -1 then
+                        pc:="-":
+                    elif type(lt[1], integer) then
+                        pc:=lt[1]:
+                    elif lt[1] < 0 then
+                        pc:=sprintf("-\\frac{%d}{%d}", -numer(lt[1]), denom(lt[1])):
+                    else
+                        pc:=sprintf("\\frac{%d}{%d}", numer(lt[1]), denom(lt[1])):
+                    fi:
+                    arr(ArrayNumElems(arr)+1):=cat(pc, latex(sort(lt[2], [N,k]), output=string)):
+                    
+                else
+                    arr(ArrayNumElems(arr)+1):=sprintf("%a", sort(lt[1]*lt[2], [N,k])):
+                fi:
+            od:
+            #print(expr):
+            return StringTools[Join](StringTools[StringSplit](StringTools[Join](convert(arr, list), "+"), "+-"), "-"):
+            #print(expr, d):
+            #return sort(expr, wdeg([d+1, 1], [k, N])):
+            #expr2:=collect(expr, k):
+            #print(expr2, indets(expr2) union {N,k}):
+            #return sort(expr2):
+        else
+            if tex then
+                return latex(sort(expr, [N, k]), output=string):
+            else
+                return sprintf("%a", sort(expr, [N, k])):
+            fi:
+        fi:
+    end:
+    
+    Expand:=proc(expr)
+        if expd then
+            #print(collect(expr, k)):
+            #return Sort(expand(expr), true):
+            return expand(expr):
+        else
+            #return sprintf("%a", expr):
+            return expr:
+        fi:
+    end:
+    
+    Format:=proc(Qind, Qval)
+        if tex then
+            return sprintf("\\item $%s\\p{%s} = %s$", Q, Sort(Qind, false), Sort(Expand(Qval), true)):
+        else
+            return sprintf("%s(%s) = %s", Q, Sort(Qind, false), Sort(Expand(Qval), true)):
+        fi:
+    end:
+    
+    Compress:=proc(LL)
+        if compress then
+            #Figure out if the period can be halved
+            #TODO
+            #Upon inspection, I don't think this is ever possible
+        else
+            return LL:
+        fi:
+    end:
+    
+    Renormalize:=proc(expr, m, i) local a, r, rprime:
+        #k goes to k+((j-1)-(((i-1)*(Nmod256+j-1)) mod m)-(i-1)*N)/m
+        #return Expand(subs(k=k+((j-1)-(((i-1)*(Nmod256+j-1)) mod m)-(i-1)*N)/m, expr)):
+        #rprime:=(((i-1)*(Nmod256)-j+1) mod m):
+        a:=i-1:
+        r:=j-1:
+        rprime:=(r-a*Nmod256) mod m:
+        #print("r vs r'", j-1, rprime):
+        #return Expand(subs(k=k+(-(j-1)+rprime+(i-1)*N)/m, expr)):
+        return Expand(subs(k=k+(a*N+rprime-r)/m, expr)):
+    end:
+    
+    NormIndex:=proc(j, m, i)
+        if renormalize then
+            return (i-1)*N+m*k+(j-1):
+        else
+            return m*k+(j-1):
+        fi:        
+    end:
+    
+    ret:=Array([]):
+    
+    #Read file
+    fil:=fopen(sprintf("seqs/N4N4_%d_256.txt", Nmod256), READ):
+    L:=parse(readline(fil)):
+    #ineq:=parse(readline(fil)):
+    fclose(fil):
+    
+    #Find N and k
+    N:=op(2, L[1][1]):
+    k:=op(indets(L) minus {N}):
+    
+    if tex then
+        ret(ArrayNumElems(ret)+1):="{\\raggedcolumns\\begin{multicols}{2}":
+    fi:
+    
+    #Iterate through pieces
+    for i from startpiece to min(nops(L), endpiece) do
+        if tex and nops(L[i][2]) > 0 then
+            ret(ArrayNumElems(ret)+1):="\\textbf{Some sporadic values:}":
+            ret(ArrayNumElems(ret)+1):="\\begin{itemize}":
+        fi:
+        idx:=op(1, L[i][1]):
+        for j from 1 to nops(L[i][2]) do
+            ret(ArrayNumElems(ret)+1):=Format(idx+j-1, L[i][2][j]):
+        od:
+        if tex and nops(L[i][2]) > 0 then
+            ret(ArrayNumElems(ret)+1):="\\end{itemize}":
+        fi:
+        ret(ArrayNumElems(ret)+1):="\n":
+        
+        m:=nops(L[i][3]):
+        if m > 0 then
+            if tex then
+                ret(ArrayNumElems(ret)+1):=sprintf("\\textbf{For indices from $%s$ to $%s$:}", Sort(idx+nops(L[i][2]), false), Sort(op(2, L[i][1]), false)):
+                ret(ArrayNumElems(ret)+1):="\\begin{itemize}":
+            else
+                ret(ArrayNumElems(ret)+1):=sprintf("For indices from %s to %s:", Sort(idx+nops(L[i][2]), false), Sort(op(2, L[i][1]), false)):
+            fi:
+            if renormalize then
+                prd:=Array([0$m]):
+                for j from 1 to m do
+                    #Instead of position j-1, want position ((i-1)*Nmod256+j-1) mod m
+                    #Instead of index r+1, want index r'+1
+                    #prd[(((i-1)*Nmod256+j-1) mod m)+1]:=Renormalize(L[i][3][j], m, i):
+                    prd[((j-1-(i-1)*Nmod256) mod m)+1]:=Renormalize(L[i][3][j], m, i):
+                od:
+            else
+                prd:=L[i][3]:
+            fi:
+            for j from 1 to m do
+                ret(ArrayNumElems(ret)+1):=Format(NormIndex(j, m, i), prd[j]):
+            od:
+            if tex then
+                ret(ArrayNumElems(ret)+1):="\\end{itemize}":
+            fi:
+        
+            ret(ArrayNumElems(ret)+1):="\n":
+        fi:
+    od:
+    
+    if tex then
+        ret(ArrayNumElems(ret)+1):="\\end{multicols}}":
+    fi:
+    
+    return StringTools[Join](StringTools[StringSplit](StringTools[Join](convert(ret, list), "\n"), "\\,"), ""):
+end:
+
+AllTextFormats:=proc() local i, st, fl:
+    for i from 2 by 4 to 256 do
+        st:=N4N4_reformat(i, renormalize=false):
+        fl:=sprintf("seqs/nicetext/N4N4_%d_256_txt.txt", i):
+        fprintf(fl, "%s", st):
+        fclose(fl):
+        st:=N4N4_reformat(i, renormalize=true):
+        fl:=sprintf("seqs/nicetext/N4N4_%d_256_rntxt.txt", i):
+        fprintf(fl, "%s", st):
+        fclose(fl):
+    od:
+end:
+
+Is128Equiv:=proc() local i, F1, F2, L1, L2:
+    for i from 2 by 4 to 128 do
+        F1:=fopen(sprintf("seqs/N4N4_%d_256.txt", i), READ):
+        F2:=fopen(sprintf("seqs/N4N4_%d_256.txt", i+128), READ):
+        L1:=parse(readline(F1)):
+        L2:=parse(readline(F2)):
+        fclose(F1):
+        fclose(F2):
+        printf("%d vs %d: %s\n", i, i+128, evalb(L1 = L2)):
+    od:
+end:
+
+register(__doc, "KExplore5({icl, icsym, K, lm})",
+    Input::"icl: A positive integer, specifying the initial ",
+    "condition length to consider (default is 25)",
+    Input::"icsym: A symbol to use as icsym in nonstdhof.txt ",
+    "(default is k)",
+    Input::"K: A symbol to be treated as \"large\" (default is K)",
+    Input::"lm: A positive integer, a tuning parameter specifying ",
+    "how many terms to generate when calling ProveLongTermEventualSolution ",
+    "as a subroutine (default is 30)",
+    Output::"A completion of the proof of Proposition 10.2. Print ",
+    "out relevant info as it runs, and return an exhaustive list ",
+    "of terms, thereby serving as a proof certificate."
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+KExplore5:=proc({icl:=25, icsym:=k, K:=':-K', lm:=30})#M:=':-M'
+description "Complete the proof of Proposition 10.2, which analyzes initial conditions [5,2]":
+local ic1, ic1K, a, i, nic, nextK, nextM, M, L:
+    M:=2*K-17:
+    ic1:=FastHof([5,2], icl):
+    ic1K:=[[1..icl, ic1, []], [icl+1..K, [], [a[icsym]]], [K+1..K+2, [M, 2], []]]:
+    #sporadics:={}:
+    #for mm from 0 to 4 do
+    nic:=ProveLongTermEventualSolution(ic1K, iters=2, icsym=':-icsym', bigsymbols=[K], lmin=lm, bigsymbolmods={[K,1,2]}):
+    print(nic[1]):
+    printf("K >= %d\n\n", op(1, op(nic[2]))):
+    nic:=nic[1]:
+    nextK:=nops(nic[-1][2]) + op(2, nic[-2][1]):
+    #nextK:=op(2, nic[-1][1]):
+    nextM:=nic[-1][3][1]:
+    #L:=SeqQg(6, Nmin=nextK, ic=nic, icsym=':-icsym', bigsymbols=[K], bigsymbolmods={[K,mm,5]}, rec=TRI_HOF):
+    #for i from 2 to nops(L) do
+    #    if L[i] = 3 then
+    #        nextK:=nextK+i-3:
+    #        nextM:=L[i-1]-nextK:
+    #        break:
+    #    fi:
+    #od:
+    printf("Persists through %a\nNext K: %a\nNext M: %a\n\n", op(2, nic[-2][1]), nextK, nextM):
+    return nic[-1][2]:
+    #od:
+    #return sporadics:
+end:
+
+register(__doc, "KExplore17({icl, icsym, K, lm})",
+    Input::"icl: A positive integer, specifying the initial ",
+    "condition length to consider (default is 694)",
+    Input::"icsym: A symbol to use as icsym in nonstdhof.txt ",
+    "(default is k)",
+    Input::"K: A symbol to be treated as \"large\" (default is K)",
+    Input::"lm: A positive integer, a tuning parameter specifying ",
+    "how many terms to generate when calling ProveLongTermEventualSolution ",
+    "as a subroutine (default is 110)",
+    Output::"A completion of the proof of Proposition 10.3. Print ",
+    "out relevant info as it runs, and return an exhaustive list ",
+    "of terms, thereby serving as a proof certificate."
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+KExplore17:=proc({icl:=694, icsym:=k, K:=':-K', lm:=110})#M:=':-M'
+description "Complete the proof of Proposition 10.3, which analyzes initial conditions [17,2]":
+local ic1, ic1K, a, i, nic, nextK, nextM, M, L:
+    M:=2*K-202:
+    ic1:=FastHof([17,2], icl):
+    ic1K:=[[1..icl, ic1, []], [icl+1..K, [], [a[icsym]]], [K+1..K+2, [M, 2], []]]:
+    #sporadics:={}:
+    #for mm from 0 to 4 do
+    nic:=ProveLongTermEventualSolution(ic1K, iters=2, icsym=':-icsym', bigsymbols=[K], lmin=lm, bigsymbolmods={[K,0,2]}):
+    print(nic[1]):
+    printf("K >= %d\n\n", op(1, op(nic[2]))):
+    nic:=nic[1]:
+    nextK:=nops(nic[-1][2]) + op(2, nic[-2][1]):
+    #nextK:=op(2, nic[-1][1]):
+    nextM:=nic[-1][3][2]:
+    #L:=SeqQg(6, Nmin=nextK, ic=nic, icsym=':-icsym', bigsymbols=[K], bigsymbolmods={[K,mm,5]}, rec=TRI_HOF):
+    #for i from 2 to nops(L) do
+    #    if L[i] = 3 then
+    #        nextK:=nextK+i-3:
+    #        nextM:=L[i-1]-nextK:
+    #        break:
+    #    fi:
+    #od:
+    printf("Persists through %a\nNext K: %a\nNext M: %a\n\n", op(2, nic[-2][1]), nextK, nextM):
+    return nic[-1][2]:
+    #od:
+    #return sporadics:
+end:
+
+register(__doc, "KExplore17({icl, icsym, K, lm})",
+    Input::"icl: A positive integer, specifying the initial ",
+    "condition length to consider (default is 5154)",
+    Input::"icsym: A symbol to use as icsym in nonstdhof.txt ",
+    "(default is k)",
+    Input::"K: A symbol to be treated as \"large\" (default is K)",
+    Input::"lm: A positive integer, a tuning parameter specifying ",
+    "how many terms to generate when calling ProveLongTermEventualSolution ",
+    "as a subroutine (default is 600)",
+    Output::"A completion of the proof of Proposition 10.4. Print ",
+    "out relevant info as it runs, and return an exhaustive list ",
+    "of terms, thereby serving as a proof certificate."
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+KExplore41:=proc({icl:=5154, icsym:=k, K:=':-K', M:=':-M', lm:=600})#M:=':-M'
+description "Complete the proof of Proposition 10.3, which analyzes initial conditions [41,2]":
+local ic1, ic1K, a, i, nic, nextK, nextM, L, mm, mk, ret:
+    #M:=2*K-440:
+    ic1:=FastHof([41,2], icl):
+    ic1K:=[[1..icl, ic1, []], [icl+1..K, [], [a[icsym]]], [K+1..K+2, [M, 2], []]]:
+    #sporadics:={}:
+    ret:=[]:
+    for mk from 0 to 1 do
+        for mm from 0 to 1 do
+            nic:=ProveLongTermEventualSolution(ic1K, iters=2, icsym=':-icsym', bigsymbols=[K, M], lmin=lm, bigsymbolmods={[K,mk,2], [M, mm, 2]}):
+            #print(nic[1]):
+            printf("%a, %a\n\n", op(nic[2])):
+            nic:=nic[1]:
+            nextK:=nops(nic[-1][2]) + op(2, nic[-2][1]):
+            #nextK:=op(2, nic[-1][1]):
+            nextM:=nic[-1][3][2]:
+            if nextM = 2 then
+                nextM:=nic[-1][3][1]:
+            fi:
+            #L:=SeqQg(6, Nmin=nextK, ic=nic, icsym=':-icsym', bigsymbols=[K], bigsymbolmods={[K,mm,5]}, rec=TRI_HOF):
+            #for i from 2 to nops(L) do
+            #    if L[i] = 3 then
+            #        nextK:=nextK+i-3:
+            #        nextM:=L[i-1]-nextK:
+            #        break:
+            #    fi:
+            #od:
+            printf("K = %d mod 2\nM = %d mod 2\nPersists through %a\nNext K: %a\nNext M: %a\n\n", mk, mm, op(2, nic[-2][1]), nextK, nextM):
+            #return nic[-1][2]:
+            ret:=[op(ret), [[mk, mm], nic[-1][2]]]:
+        od:
+    od:
+    #return sporadics:
+    return ret:
+end:
+
+#Find a second-order pattern with linear stuff going on
+register(__doc, "FindSecondOrderPattern(ic, {icsym2})",
+    Input::"ic: an initial condition in the form specified ",
+    "in nonstdhof.txt",
+    Input::"icsym2: A symbol to use as icsym in nonstdhof.txt ",
+    "(default is k)",
+    Output::"A description of an apparent second-order pattern ",
+    "in the sequence described by ic, or FAIL if this is not ",
+    "possible.  The description consists of the number of terms ",
+    "in the second-order period along with the actual pattern itself.",
+    Example::["[[1..N, [], [h]]], icsym2=h", "returns FAIL"],
+    Example::["[[1 .. N, [], [h]], [N+1 .. 2*N, [], [h-N]], [2*N+1 .. 3*N, [], [h-2*N]], [3*N+1 .. 4*N, [], [h-3*N]], [4*N+1 .. 5*N, [], [h-4*N]], [5*N+1 .. 6*N, [], [h-5*N]], [6*N+1 .. 7*N, [], [h-6*N]], [7*N+1 .. 8*N, [], [h-7*N]]], icsym2=h", "returns 1, [[3*N*h+1 .. 3*N*h+N, [], [-3*N*h+h]], [3*N*h+N+1 .. 3*N*h+2*N, [], [-3*N*h-N+h]], [3*N*h+2*N+1 .. 3*N*h+3*N, [], [-3*N*h-2*N+h]]]"]
+):
+FindSecondOrderPattern:=proc(ic, {icsym2:=k})
+description "Given a complicated initial condition, search for a higher-order pattern within it":
+local prd, i, j, lgt, BlockLength, ok, ret, strt, begn, ed, begn2:
+    BlockLength:=proc(L) local L1:
+        L1:=L[1]:
+        return normal(op(2, L1) - op(1, L1) + 1):
+    end:
+    lgt:=BlockLength(ic[-1]):
+    for i from -2 by -1 to -nops(ic)/3 do
+        if BlockLength(ic[i]) = lgt then
+            #It's a candidate!
+            prd:=1-i:
+            ok:=true:
+            ret:=[]:
+            for j from -1 by -1 to i+1 do
+                ok:=false:
+                if BlockLength(ic[j]) <> BlockLength(ic[j-prd]) or BlockLength(ic[j]) <> BlockLength(ic[j-2*prd]) then
+                    #No longer a candidate
+                    break:
+                elif nops(ic[j][2]) <> nops(ic[j-prd][2]) or nops(ic[j][2]) <> nops(ic[j-2*prd][2]) then
+                    #No longer a candidate
+                    break:
+                elif normal(ic[j][2] - ic[j-prd][2]) <> normal(ic[j-prd][2] - ic[j-2*prd][2]) then
+                    #No longer a candidate
+                    break:
+                elif nops(ic[j][3]) <> nops(ic[j-prd][3]) or nops(ic[j][3]) <> nops(ic[j-2*prd][3]) then
+                    #No longer a candidate
+                    break:
+                elif normal(ic[j][3] - ic[j-prd][3]) <> normal(ic[j-prd][3] - ic[j-2*prd][3]) then
+                    #No longer a candidate
+                    break:
+                else
+                    #Still a candidate!
+                    ok:=true:
+                fi:
+            od:
+            if ok then
+                #return prd:
+                ret:=[]:
+                strt:=-nops(ic):
+                for i from -1 by -1 to -prd do
+                    #Figure out where the piece starts
+                    for j from i-prd by -prd to -nops(ic) do
+                        if BlockLength(ic[j]) <> BlockLength(ic[i]) or nops(ic[j][2]) <> nops(ic[i][2]) or ic[j][2] <> ic[i][2] + ((j-i)/prd)*(ic[i][2]-ic[i-prd][2]) or nops(ic[j][3]) <> nops(ic[i][3]) or ic[j][3] <> ic[i][3] + ((j-i)/prd)*(ic[i][3]-ic[i-prd][3]) then
+                            #Went too far
+                            #printf("Ended at j=%d\n", nops(ic)+j+1):
+                            strt:=max(strt, j+1):
+                            break:
+                        fi:
+                    od:
+                od:
+                #return prd, nops(ic)+strt+1:
+                for i from 1 to prd do
+                    #Build the form
+                    begn:=op(1, ic[strt+i-1][1]):
+                    ed:=op(2, ic[strt+i-1][1]):
+                    begn2:=op(1, ic[strt+i+prd-1][1]):
+                    ret:=[op(ret), [expand(begn+icsym2*(begn2-begn))..expand(ed+icsym2*(begn2-begn)), expand(ic[strt+i-1][2]+icsym2*(ic[strt+i+prd-1][2]-ic[strt+i-1][2])), expand(ic[strt+i-1][3]+icsym2*(ic[strt+i+prd-1][3]-ic[strt+i-1][3]))]]:
+                od:
+                return nops(ic)+strt+1, ret:
+            fi:
+        fi:
+    od:
+    return FAIL:
+end:
+
+#Deal with these annoying patterns
+register(__doc, "ExploreN2(Nmod24, {iters, full, verbose, terms})",
+    Input::"Nmod24: an element of {1,9,13,21} specifying the ",
+    "value of N mod 24",
+    Input::"iters: a positive integer specifying the number of ",
+    "iterations for ProveLongTermEventualSolution prior to looking ",
+    "for a second-order pattern (default is 50)",
+    Input::"verbose: print out extra stuff? ",
+    "(default is false)",
+    Input::"terms: A positive integer, a tuning parameter specifying ",
+    "how many terms to generate when calling ProveLongTermEventualSolution ",
+    "as a subroutine (default is 80)",
+    Output::"A completion of the proof of Case 5 of Theorem ",
+    "10.1 for the specified N congruence. Return all of the relevant ",
+    "info as a proof certificate."
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+ExploreN2:=proc(Nmod24, {iters:=50, full:=true, verbose:=false, terms:=80})
+description "Complete the proof of one sub-case of Case 5 of Theorem 10.1, which analyzes initial conditions [N,2] when N is congruent to 1, 9, 13, or 21 mod 24":
+local ic, nic, gic, Nbd, N, h, k, a, strt, sop, gico, Nbd2:
+    ic, Nbd:=ProveLongTermEventualSolution([[1..2, [N, 2], []]], simp=true, icsym=h, bigsymbols=[N], bigsymbolmods={[N, Nmod24, 24]}, ':-iters'=iters, ':-verbose'=verbose, lmin=terms):
+    strt, sop:=FindSecondOrderPattern(ic, icsym2=k):
+    if sop = FAIL then
+        return FAIL:
+    else
+        printf("Found a period-%d second-order pattern starting in block %d\n", nops(sop), strt):
+    fi:
+    nic:=[op(1..strt-1, ic), [op(1, ic[strt][1])..op(1, sop[1][1])-1, [], [a[h]]], op(sop), op(subs(k=k+1, sop))]:
+    #return sop, nic:
+    gic, Nbd2:=ProveLongTermEventualSolution(nic, simp=true, icsym=h, bigsymbols=[N,k], bigsymbolmods={[N, Nmod24, 24]}, ':-iters'=nops(sop), ':-verbose'=verbose, lmin=terms):
+    if normal(gic[-nops(sop)..]) <> normal(subs(k=k+2, sop)) then
+        printf("It didn't check out\n"):
+        return FAIL:
+    else
+        printf("Pattern checked out!\n"):
+    fi:
+    gico:=gic:
+    Nbd:=Nbd union Nbd2:
+    if full then
+        gic, Nbd2:=ProveLongTermEventualSolution(nic, simp=true, icsym=h, bigsymbols=[k,N], bigsymbolmods={[N, Nmod24, 24]}, ':-iters'=nops(sop), ':-verbose'=verbose, lmin=terms):
+        if normal(gic[-nops(sop)..]) <> normal(subs(k=k+2, sop)) then
+            printf("Small k didn't check out\n"):
+            return FAIL:
+        else
+            printf("Small k checked out!\n"):
+        fi:
+        Nbd:=Nbd union Nbd2:
+        gic, Nbd2:=ProveLongTermEventualSolution(subs(k=N, nic), simp=true, icsym=h, bigsymbols=[N], bigsymbolmods={[N, Nmod24, 24]}, ':-iters'=nops(sop), ':-verbose'=verbose, lmin=terms):
+        if normal(gic[-nops(sop)..]) <> normal(subs(k=N+2, sop)) then
+            printf("N=k didn't check out\n"):
+            return FAIL:
+        else
+            printf("N=k checked out!\n"):
+        fi:
+        Nbd:=Nbd union Nbd2:
+    fi:
+    printf("It worked!\n"):
+    return ic[1..strt-1], sop, gico, Nbd:
+end:
+
+register(__doc, "ExploreAllN2({exclude, verbose, dirc})",
+    Input::"exclude: a subset of {1,9,13,21} to exclude from ",
+    "analysis (default is {})",
+    Input::"verbose: print out extra stuff? ",
+    "(default is false)",
+    Input::"dirc: a string specifying the directory ",
+    "for the output files (default is seqs)",
+    Output::"A completion of the proof of Case 5 of Theorem ",
+    "10.1. Write relevant info to files as it runs."
+    #Example::["[1,1,1], 20", "returns [1, 1, 1, 3, 7, 8, 3, 8, 10, 4, 5, 12, 19, 11, 4, 19, 27, 11, 8, 22]"],
+    #Example::["[1,2,3,4,5], 20", "returns [1, 2, 3, 4, 5, 6, 6, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14, 15, 15, 16]"]
+):
+ExploreAllN2:=proc({exclude:={}, verbose:=false, dirc:="seqs"})
+description "Complete the proof of Case 5 of Theorem 10.1, which analyzes initial conditions [N,2] when N is congruent to 1, 9, 13, or 21 mod 24":
+local ic, sop, gic, Nbd, fil, en2, i:
+    for i in [1,9,13,21] do
+        if i in exclude then
+            next:
+        fi:
+        printf("Now studying %d\n", i):
+        en2:=ExploreN2(i, ':-verbose'=verbose):
+        fil:=sprintf("%s/N2N2_%d_24.txt", dirc, i):
+        fil:=fopen(fil, WRITE):
+        if en2 <> FAIL then
+            ic, sop, gic, Nbd:=en2:
+            fprintf(fil, "%a\n\n%a\n%a", ic, sop, Nbd):
+        else
+            fprintf(fil, "FAILED"):
+        fi:
+        fclose(fil):
+    od:
+end:
+
+CollapseTermsFile:=proc(fil, L, {startind:=1, Q:="Q_{2,5}"}) local f1, i:
+    f1:=fopen(fil, WRITE):
+    for i from 1 to nops(L) do
+        fprintf(f1, "%s(%a) = %a\n", Q, sort(startind + i - 1), sort(L[i])):
+    od:
+    fclose(f1):
+end:
+
+#Help procedure
+HelpN4N4:=getHelp(__doc):
